@@ -6,7 +6,8 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { IconCheck } from '../icons.jsx'
-import { PILLARS, CAL_EVENTS } from '../data.js'
+import { CAL_EVENTS } from '../data.js'
+import { usePillars } from '../lib/usePillars.js'
 
 const ReactDOM = { createPortal }
 
@@ -1267,6 +1268,7 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
 }
 
 export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsChange }) {
+  const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus } = usePillars()
 
   const initial = React.useMemo(() => {
     if (initialProgress === 'empty')
@@ -1284,6 +1286,11 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
   // pillar header and the remaining-time bank on the Scheduling page.
   const [taskStatuses, setTaskStatuses] = React.useState({});
   const updateTaskStatus = React.useCallback((taskId, status) => {
+    // Write through to course_tasks. Don't block UI on the round-trip;
+    // the hook logs failures to the console. Re-fetch on next open.
+    if (writeTaskStatus && taskId && status && !String(taskId).startsWith('new-') && !String(taskId).startsWith('pnew-')) {
+      writeTaskStatus(taskId, status)
+    }
     setTaskStatuses(s => {
       if (status === 'next' || status === null) {
         if (!(taskId in s)) return s;
@@ -1292,7 +1299,7 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
       if (s[taskId] === status) return s;
       return { ...s, [taskId]: status };
     });
-  }, []);
+  }, [writeTaskStatus]);
   // User overrides on estimate ("~15m" guess → confirmed "60m") and depth
   // ('deep' / 'admin') — drives both per-pillar remaining mins and the
   // dock's D/A task counts. Keyed by task id.
@@ -1309,7 +1316,13 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
   // Fingerprint of the last toast + when it fired, used to dedupe.
   const lastToastFp = React.useRef(null);
   const lastToastAt = React.useRef(0);
-  const [order, setOrder] = React.useState(PILLARS.map(p => p.id));
+  const [order, setOrder] = React.useState(() => PILLARS.map(p => p.id));
+  // Populate order when pillars arrive from the async fetch.
+  React.useEffect(() => {
+    if (PILLARS.length && order.length === 0) {
+      setOrder(PILLARS.map(p => p.id));
+    }
+  }, [PILLARS, order.length]);
   const [reorder, setReorder] = React.useState(null); // { id, startY, dy, hoverIndex, heights }
   const pillarRefs = React.useRef({});
 
