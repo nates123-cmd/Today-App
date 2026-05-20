@@ -5,6 +5,7 @@ import { IconCheck, IconRegen, groundingIcons } from '../icons.jsx'
 import { TIDE_BACKFILL, GROUNDING } from '../data.js'
 import { useOura } from '../lib/useOura.js'
 import { useHabits } from '../lib/useHabits.js'
+import { useHealthInsight } from '../lib/useHealthInsight.js'
 
 const OURA_FALLBACK = {
   readiness: '—',
@@ -20,18 +21,21 @@ const OURA_FALLBACK = {
 
 export function Morning({ onOpenYesterday }) {
   const { data: ouraLive, loading: ouraLoading } = useOura()
-  const { habits, toggle: toggleHabit } = useHabits()
+  const { habits, loading: habitsLoading, toggle: toggleHabit } = useHabits()
   const OURA = ouraLive ?? OURA_FALLBACK
   const [backfill, setBackfill] = React.useState(TIDE_BACKFILL);
-  const [insightVersion, setInsightVersion] = React.useState(0);
   const [ouraSyncing, setOuraSyncing] = React.useState(false);
   const ouraSyncedAt = ouraLoading ? 'syncing…' : OURA.syncedAtLabel;
 
-  const insights = [
-    'HRV up, RHR down. Body is recovered. Schedule the hard work this morning.',
-    'Sleep solid (7h12m). Cognitive load can be heavy today.',
-    'Temp neutral. No infection signal. Train normally.',
-  ];
+  // Health insight: claude edge fn when proxy secret is configured, else
+  // rotating static lines. Inputs are passed only after both Oura and habits
+  // have resolved so the prompt sees real readings.
+  const insightReady = !ouraLoading && !habitsLoading;
+  const {
+    insight,
+    loading: insightLoading,
+    regenerate: regenInsight,
+  } = useHealthInsight({ oura: ouraLive, habits, ready: insightReady });
 
   return (
     <div className="page" data-screen-label="01 Morning">
@@ -98,13 +102,16 @@ export function Morning({ onOpenYesterday }) {
              onClick={() => console.log('→ Tide')}>
           <div className="morning-card-label">
             <span>insight</span>
-            <button className="regen-btn"
+            <button className={`regen-btn ${insightLoading ? 'spinning' : ''}`}
+                    title="Regenerate insight"
                     onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); setInsightVersion(v => (v + 1) % insights.length); }}>
+                    onClick={(e) => { e.stopPropagation(); if (!insightLoading) regenInsight(); }}>
               <IconRegen />
             </button>
           </div>
-          <div className="insight-text fade-in" key={insightVersion}>{insights[insightVersion]}</div>
+          <div className="insight-text fade-in" key={insight ?? 'loading'}>
+            {insight ?? (insightLoading ? 'reading the signal…' : '—')}
+          </div>
         </div>
 
         {/* Tide checklist */}
