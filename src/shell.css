@@ -48,3 +48,12 @@
   font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
 }
 .surface-stub-cta:hover { background: var(--accent-soft); }
+
+/* Center the welcome date block (overrides prototype's left-aligned layout). */
+.welcome .welcome-top {
+  text-align: center;
+}
+.welcome .welcome-day {
+  /* Mono caption above the date stays inline with the centered axis. */
+  display: block;
+}

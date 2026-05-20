@@ -63,19 +63,26 @@ function DayOverlayStub({ kind, onClose }) {
 }
 
 export default function App() {
-  // First-open-of-day: show welcome only if today != last-opened day.
-  const lastOpened = typeof localStorage !== 'undefined' ? localStorage.getItem(TODAY_KEY) : null
-  const lastPage = typeof localStorage !== 'undefined' ? localStorage.getItem(PAGE_KEY) : null
-  const isFirstOpenToday = lastOpened !== todayISO()
+  // Capture session-stable values once. Recomputing these on every render
+  // (especially after the first localStorage write) was making the pages
+  // array shrink mid-session and the pager bounce between welcome and morning.
+  const [isFirstOpenToday] = useState(() => {
+    if (typeof localStorage === 'undefined') return true
+    return localStorage.getItem(TODAY_KEY) !== todayISO()
+  })
 
-  const pages = isFirstOpenToday
-    ? ['welcome', 'morning', 'triage', 'scheduling', 'live']
-    : ['morning', 'triage', 'scheduling', 'live']
+  const [pages] = useState(() =>
+    isFirstOpenToday
+      ? ['welcome', 'morning', 'triage', 'scheduling', 'live']
+      : ['morning', 'triage', 'scheduling', 'live']
+  )
 
-  // Resume rule: first-open → welcome (idx 0); else last page if known, else live.
-  const initialIdx = isFirstOpenToday
-    ? 0
-    : Math.max(0, pages.indexOf(lastPage ?? 'live'))
+  const [initialIdx] = useState(() => {
+    if (isFirstOpenToday) return 0
+    const last = typeof localStorage !== 'undefined' ? localStorage.getItem(PAGE_KEY) : null
+    const candidate = pages.indexOf(last ?? 'live')
+    return candidate < 0 ? pages.indexOf('live') : candidate
+  })
 
   const [activePage, setActivePage] = useState(initialIdx)
   const [placed, setPlaced] = useState(seedPlacedBlocks)
@@ -86,17 +93,17 @@ export default function App() {
   const pagerRef = useRef(null)
   const phoneRef = useRef(null)
 
-  // Persist last-opened date + last page.
-  useEffect(() => {
-    localStorage.setItem(TODAY_KEY, todayISO())
-  }, [])
-
+  // Persist last-page + mark today as "opened" once the user moves past
+  // welcome. Staying on welcome and reloading should still show welcome —
+  // the ritual hasn't begun yet.
   useEffect(() => {
     const name = pages[activePage]
-    if (name && name !== 'welcome') localStorage.setItem(PAGE_KEY, name)
-  }, [activePage, pages])
+    if (!name || name === 'welcome') return
+    localStorage.setItem(PAGE_KEY, name)
+    if (isFirstOpenToday) localStorage.setItem(TODAY_KEY, todayISO())
+  }, [activePage, pages, isFirstOpenToday])
 
-  // Initial scroll-to-page.
+  // Initial scroll-to-page (runs once — initialIdx is session-stable).
   useEffect(() => {
     if (!pagerRef.current) return
     pagerRef.current.scrollTop = initialIdx * pagerRef.current.clientHeight
@@ -157,10 +164,12 @@ export default function App() {
         </div>
 
         <div className="pager" ref={pagerRef} onScroll={onPagerScroll}>
-          {isFirstOpenToday && <Welcome onSwipeUp={() => goToPage(1)} />}
+          {isFirstOpenToday && (
+            <Welcome onSwipeUp={() => goToPage(pages.indexOf('morning'))} />
+          )}
           <Morning onOpenYesterday={() => setDayOverlay('yesterday')} />
           <Triage
-            onPushNext={() => goToPage(isFirstOpenToday ? 3 : 2)}
+            onPushNext={() => goToPage(pages.indexOf('scheduling'))}
             onRemainingMinsChange={setRemainingMinsByPillar}
           />
           <Scheduling
