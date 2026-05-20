@@ -1,0 +1,50 @@
+/* Shell-level adjustments on top of styles.css.
+   The prototype's .phone is a 390×820 desktop preview frame. On mobile we
+   want the column to fill the viewport; on desktop we keep the framed
+   preview centered on the stage. */
+
+#root {
+  width: 100vw;
+  height: 100vh;
+}
+
+@media (max-width: 480px) {
+  html, body { overflow: auto; }
+  .stage { width: 100vw; height: 100svh; }
+  .phone {
+    width: 100vw; height: 100svh;
+    border-radius: 0; border: none;
+    box-shadow: none;
+  }
+}
+
+/* Surface stubs — placeholder content for un-ported pages. */
+.surface-stub {
+  height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; gap: 16px;
+  padding: 60px 32px 100px;
+}
+.surface-stub-label {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+.surface-stub-title {
+  font-family: var(--font-display); font-weight: 400;
+  font-size: 48px; letter-spacing: -0.02em;
+  color: var(--ink-primary); margin: 0;
+}
+.surface-stub-body {
+  color: var(--ink-secondary); max-width: 320px;
+  line-height: 1.5; font-size: 14px;
+}
+.surface-stub-cta {
+  margin-top: 16px;
+  padding: 12px 24px; border: 1px solid var(--accent);
+  border-radius: 999px; background: transparent;
+  color: var(--accent); font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.surface-stub-cta:hover { background: var(--accent-soft); }
