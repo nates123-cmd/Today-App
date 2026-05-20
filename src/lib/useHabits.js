@@ -5,17 +5,20 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10)
 }
 
-export function useHabits() {
+// Read + write habit completion for a given date. Defaults to today; pass an
+// ISO date (e.g. yesterday) for backfill flows.
+export function useHabits(date) {
+  const targetDate = date ?? todayISO()
   const [habits, setHabits] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     let cancelled = false
-    const date = todayISO()
+    setLoading(true)
     Promise.all([
       supabase.from('habits').select('id, name').eq('active', true).order('name'),
-      supabase.from('habit_logs').select('habit_id').eq('date', date),
+      supabase.from('habit_logs').select('habit_id').eq('date', targetDate),
     ]).then(([habitsRes, logsRes]) => {
       if (cancelled) return
       if (habitsRes.error || logsRes.error) {
@@ -37,7 +40,7 @@ export function useHabits() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [targetDate])
 
   // Optimistic toggle. Insert habit_log row when checking, delete when
   // unchecking. Reverts local state on failure.
@@ -51,13 +54,12 @@ export function useHabits() {
       })
       return next
     })
-    const date = todayISO()
     if (prevChecked) {
       const res = await supabase
         .from('habit_logs')
         .delete()
         .eq('habit_id', habitId)
-        .eq('date', date)
+        .eq('date', targetDate)
       if (res.error) {
         console.error('habit_logs delete failed', res.error)
         setHabits((arr) =>
@@ -65,7 +67,9 @@ export function useHabits() {
         )
       }
     } else {
-      const res = await supabase.from('habit_logs').insert({ habit_id: habitId, date })
+      const res = await supabase
+        .from('habit_logs')
+        .insert({ habit_id: habitId, date: targetDate })
       if (res.error) {
         console.error('habit_logs insert failed', res.error)
         setHabits((arr) =>
@@ -73,7 +77,7 @@ export function useHabits() {
         )
       }
     }
-  }, [])
+  }, [targetDate])
 
   return { habits, loading, error, toggle }
 }

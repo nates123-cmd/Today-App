@@ -6,6 +6,7 @@ import React from 'react'
 import { IconCheck } from '../icons.jsx'
 import { YESTERDAY, TOMORROW, WEEK } from '../data.js'
 import { useDailyHighlight } from '../lib/useDailyHighlight.js'
+import { useHabits } from '../lib/useHabits.js'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', open: 'Open Tasks' }
 
@@ -31,16 +32,16 @@ function isoDate(d) {
 export function DayOverlay({ kind, onClose }) {
   if (!kind) return null
 
-  // Yesterday: checkable habits (state lives here so closing doesn't reset)
-  const [yHabits, setYHabits] = React.useState(() =>
-    YESTERDAY.habits.reduce((acc, h) => { acc[h.id] = h.checked; return acc }, {})
-  )
-  const toggleYHabit = (id) => setYHabits((s) => ({ ...s, [id]: !s[id] }))
-
   // Daily highlight: live read/write to Ink's entries table.
   const ydate = React.useMemo(yesterdayDateObj, [])
   const ydateISO = isoDate(ydate)
   const { highlight: highlightRow, save: saveHighlight } = useDailyHighlight(ydateISO)
+
+  // Yesterday habits: live read/write to habit_logs with yesterday's date.
+  // Schema has no active_from/active_to, so the active=true filter shows the
+  // *current* habit set, not the set that was active yesterday — accepted v1
+  // limitation. Toggle inserts/deletes a habit_logs row dated yesterday.
+  const { habits: yHabits, toggle: toggleYHabit } = useHabits(ydateISO)
   const [highlightDraft, setHighlightDraft] = React.useState('')
   const [highlightEditing, setHighlightEditing] = React.useState(false)
   const commitHighlight = async () => {
@@ -65,7 +66,7 @@ export function DayOverlay({ kind, onClose }) {
       return out
     })
 
-  const yCheckedCount = Object.values(yHabits).filter(Boolean).length
+  const yCheckedCount = yHabits.filter((h) => h.checked).length
 
   return (
     <div
@@ -86,14 +87,14 @@ export function DayOverlay({ kind, onClose }) {
           <div className="morning-card-label" style={{ marginBottom: 8 }}>
             <span>habit log</span>
             <span style={{ color: 'var(--ink-secondary)' }}>
-              {yCheckedCount} / {YESTERDAY.habits.length}
+              {yCheckedCount} / {yHabits.length}
             </span>
           </div>
           <div className="morning-card" style={{ marginBottom: 16, padding: '4px 16px' }}>
-            {YESTERDAY.habits.map((h) => (
-              <div key={h.id} className={`tide-item ${yHabits[h.id] ? 'checked' : ''}`}>
+            {yHabits.map((h) => (
+              <div key={h.id} className={`tide-item ${h.checked ? 'checked' : ''}`}>
                 <button
-                  className={`tide-check ${yHabits[h.id] ? 'checked' : ''}`}
+                  className={`tide-check ${h.checked ? 'checked' : ''}`}
                   onClick={() => toggleYHabit(h.id)}
                 >
                   <IconCheck w={10} />
