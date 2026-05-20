@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import { writebackTaskStatus, writebackTaskDoDate } from './notionWriteback'
 
 // Today's four pillar buckets. The first three map to Course's pillar tag
 // strings (capitalized in the DB); the fourth ('open') is synthetic — it's
@@ -32,6 +33,7 @@ function shapeTask(t) {
     status: t.status,
     doDate: t.do_date,
     projectId: t.project_id,
+    notionUrl: t.notion_url,
   }
 }
 
@@ -105,7 +107,7 @@ export function usePillars() {
       projectIds.length
         ? supabase
             .from('course_tasks')
-            .select('id, project_id, title, status, effort, work_type, day_order, do_date')
+            .select('id, project_id, title, status, effort, work_type, day_order, do_date, notion_url')
             .in('project_id', projectIds)
             .not('status', 'in', '(done,dropped,archived)')
         : Promise.resolve({ data: [], error: null }),
@@ -129,20 +131,52 @@ export function usePillars() {
     refresh()
   }, [refresh])
 
-  // Map Today's UI status names → Course's enum, then write back.
+  // We need notion_url at writeback time but pillars state is async; keep a
+  // ref of taskId → notion_url so writeback works even if pillars haven't
+  // re-rendered yet (e.g., when a status change fires its own writeback
+  // before refresh).
+  const notionUrlByTask = useRef(new Map())
+  useEffect(() => {
+    const map = new Map()
+    for (const p of pillars) {
+      for (const t of p.openTasks ?? []) map.set(t.id, t.notionUrl ?? null)
+      for (const proj of p.projects ?? [])
+        for (const t of proj.tasks ?? []) map.set(t.id, t.notionUrl ?? null)
+    }
+    notionUrlByTask.current = map
+  }, [pillars])
+
+  // Map Today's UI status names → Course's enum, then write back to both
+  // Supabase and (best-effort) Notion. Notion writeback is fire-and-forget;
+  // its failure must not block the UI.
   const updateTaskStatus = useCallback(async (taskId, status) => {
     const patch = { status }
     if (status === 'done') patch.completed_date = new Date().toISOString().slice(0, 10)
     const res = await supabase.from('course_tasks').update(patch).eq('id', taskId)
     if (res.error) {
       console.error('updateTaskStatus failed', res.error)
+      return
     }
+    const notionUrl = notionUrlByTask.current.get(taskId)
+    if (notionUrl) writebackTaskStatus(notionUrl, status)
   }, [])
 
-  // Generic patch — used by push/drop/weekly + their undo replays.
+  // Generic patch — used by push/drop/weekly + their undo replays. Mirrors
+  // status and do_date to Notion when present in the patch.
   const updateTask = useCallback(async (taskId, patch) => {
     const res = await supabase.from('course_tasks').update(patch).eq('id', taskId)
-    if (res.error) console.error('updateTask failed', res.error)
+    if (res.error) {
+      console.error('updateTask failed', res.error)
+      return
+    }
+    const notionUrl = notionUrlByTask.current.get(taskId)
+    if (!notionUrl) return
+    if (Object.prototype.hasOwnProperty.call(patch, 'status')) {
+      writebackTaskStatus(notionUrl, patch.status)
+    }
+    if (Object.prototype.hasOwnProperty.call(patch, 'do_date')) {
+      writebackTaskDoDate(notionUrl, patch.do_date)
+    }
   }, [])
 
   // Look up a task's current persistable fields by id (so push/drop/weekly
