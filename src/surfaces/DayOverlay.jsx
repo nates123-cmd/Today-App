@@ -5,8 +5,28 @@
 import React from 'react'
 import { IconCheck } from '../icons.jsx'
 import { YESTERDAY, TOMORROW, WEEK } from '../data.js'
+import { useDailyHighlight } from '../lib/useDailyHighlight.js'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', open: 'Open Tasks' }
+
+// "20W" = day-of-month + first letter of weekday (matches the prototype's
+// empty-state datestamp design).
+function datestampFor(date) {
+  const d = date.getDate()
+  const w = date.toLocaleDateString('en-US', { weekday: 'long' })
+  return `${d}${w[0].toUpperCase()}`
+}
+function dayWordFor(date) {
+  return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
+}
+function yesterdayDateObj() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  return d
+}
+function isoDate(d) {
+  return d.toISOString().slice(0, 10)
+}
 
 export function DayOverlay({ kind, onClose }) {
   if (!kind) return null
@@ -16,6 +36,23 @@ export function DayOverlay({ kind, onClose }) {
     YESTERDAY.habits.reduce((acc, h) => { acc[h.id] = h.checked; return acc }, {})
   )
   const toggleYHabit = (id) => setYHabits((s) => ({ ...s, [id]: !s[id] }))
+
+  // Daily highlight: live read/write to Ink's entries table.
+  const ydate = React.useMemo(yesterdayDateObj, [])
+  const ydateISO = isoDate(ydate)
+  const { highlight: highlightRow, save: saveHighlight } = useDailyHighlight(ydateISO)
+  const [highlightDraft, setHighlightDraft] = React.useState('')
+  const [highlightEditing, setHighlightEditing] = React.useState(false)
+  const commitHighlight = async () => {
+    const text = highlightDraft.trim()
+    if (!text) {
+      setHighlightEditing(false)
+      return
+    }
+    await saveHighlight(text)
+    setHighlightDraft('')
+    setHighlightEditing(false)
+  }
 
   // Tomorrow: week overview collapsed by default + mode toggle
   const [weekExpanded, setWeekExpanded] = React.useState(false)
@@ -72,7 +109,7 @@ export function DayOverlay({ kind, onClose }) {
             <span>daily highlight</span>
             <span style={{ color: 'var(--ink-faint)' }}>ink</span>
           </div>
-          {YESTERDAY.highlight ? (
+          {highlightRow && !highlightEditing ? (
             <div
               className="morning-card"
               style={{
@@ -84,16 +121,45 @@ export function DayOverlay({ kind, onClose }) {
                 marginBottom: 20,
               }}
             >
-              "{YESTERDAY.highlight}"
+              "{highlightRow.raw_text}"
             </div>
-          ) : (
+          ) : highlightEditing ? (
             <div className="highlight-empty" style={{ marginBottom: 20 }}>
               <div className="highlight-empty-head">
-                <span className="highlight-empty-datestamp">18M</span>
-                <span className="highlight-empty-day">monday</span>
+                <span className="highlight-empty-datestamp">{datestampFor(ydate)}</span>
+                <span className="highlight-empty-day">{dayWordFor(ydate)}</span>
+              </div>
+              <textarea
+                className="highlight-input"
+                autoFocus
+                value={highlightDraft}
+                onChange={(e) => setHighlightDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault()
+                    commitHighlight()
+                  }
+                  if (e.key === 'Escape') {
+                    setHighlightDraft('')
+                    setHighlightEditing(false)
+                  }
+                }}
+                onBlur={commitHighlight}
+                placeholder="What happened yesterday?"
+              />
+            </div>
+          ) : (
+            <button
+              className="highlight-empty highlight-empty-button"
+              style={{ marginBottom: 20 }}
+              onClick={() => setHighlightEditing(true)}
+            >
+              <div className="highlight-empty-head">
+                <span className="highlight-empty-datestamp">{datestampFor(ydate)}</span>
+                <span className="highlight-empty-day">{dayWordFor(ydate)}</span>
               </div>
               <div className="highlight-empty-prompt">What happened yesterday?</div>
-            </div>
+            </button>
           )}
 
           {/* Stats */}

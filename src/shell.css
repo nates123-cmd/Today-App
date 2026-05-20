@@ -130,3 +130,37 @@
   /* Mono caption above the date stays inline with the centered axis. */
   display: block;
 }
+
+/* Daily-highlight empty state — tap-to-edit affordance. */
+.highlight-empty-button {
+  appearance: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+}
+.highlight-empty-button:hover .highlight-empty-prompt {
+  color: var(--accent);
+}
+.highlight-input {
+  display: block;
+  width: 100%;
+  min-height: 80px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 16px;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+}
+.highlight-input:focus { border-color: var(--accent-strong); }
