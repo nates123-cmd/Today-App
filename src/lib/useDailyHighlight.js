@@ -55,6 +55,22 @@ export function useDailyHighlight(dateISO) {
     async (text) => {
       const trimmed = (text || '').trim()
       if (!trimmed || !dateISO) return
+      // Single highlight per day — UPDATE the existing row when one is loaded,
+      // INSERT otherwise. Keeps history clean (no append-only revisions).
+      if (highlight?.id) {
+        const { data, error } = await supabase
+          .from('entries')
+          .update({ raw_text: trimmed })
+          .eq('id', highlight.id)
+          .select('id, raw_text, composed_at')
+          .single()
+        if (error) {
+          console.error('useDailyHighlight update failed', error)
+          return
+        }
+        setHighlight(data)
+        return
+      }
       const row = {
         primary_type: 'day',
         source_surface: 'today_screen',
@@ -67,12 +83,12 @@ export function useDailyHighlight(dateISO) {
         .select('id, raw_text, composed_at')
         .single()
       if (error) {
-        console.error('useDailyHighlight save failed', error)
+        console.error('useDailyHighlight insert failed', error)
         return
       }
       setHighlight(data)
     },
-    [dateISO]
+    [dateISO, highlight]
   )
 
   return { highlight, loading, error, save }

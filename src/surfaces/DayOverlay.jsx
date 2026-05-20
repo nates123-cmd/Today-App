@@ -111,8 +111,13 @@ export function DayOverlay({ kind, onClose }) {
             <span style={{ color: 'var(--ink-faint)' }}>ink</span>
           </div>
           {highlightRow && !highlightEditing ? (
-            <div
+            <button
               className="morning-card"
+              title="Tap to revise"
+              onClick={() => {
+                setHighlightDraft(highlightRow.raw_text)
+                setHighlightEditing(true)
+              }}
               style={{
                 fontFamily: 'var(--font-display)',
                 fontSize: 17,
@@ -120,10 +125,15 @@ export function DayOverlay({ kind, onClose }) {
                 fontStyle: 'italic',
                 lineHeight: 1.45,
                 marginBottom: 20,
+                textAlign: 'left',
+                background: 'inherit',
+                border: 'none',
+                cursor: 'pointer',
+                width: '100%',
               }}
             >
               "{highlightRow.raw_text}"
-            </div>
+            </button>
           ) : highlightEditing ? (
             <div className="highlight-empty" style={{ marginBottom: 20 }}>
               <div className="highlight-empty-head">
