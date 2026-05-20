@@ -2,17 +2,30 @@
 
 import React from 'react'
 import { IconCheck, IconRegen, groundingIcons } from '../icons.jsx'
-import { OURA, TIDE_HABITS, TIDE_BACKFILL, GROUNDING } from '../data.js'
+import { TIDE_BACKFILL, GROUNDING } from '../data.js'
+import { useOura } from '../lib/useOura.js'
+import { useHabits } from '../lib/useHabits.js'
+
+const OURA_FALLBACK = {
+  readiness: '—',
+  delta: null,
+  syncedAtLabel: 'no data',
+  rows: [
+    { label: 'sleep', value: '—', delta: null },
+    { label: 'hrv', value: '—', delta: null },
+    { label: 'rhr', value: '—', delta: null },
+    { label: 'temp', value: '—', delta: null },
+  ],
+}
 
 export function Morning({ onOpenYesterday }) {
-  const [habits, setHabits] = React.useState(TIDE_HABITS);
+  const { data: ouraLive, loading: ouraLoading } = useOura()
+  const { habits, toggle: toggleHabit } = useHabits()
+  const OURA = ouraLive ?? OURA_FALLBACK
   const [backfill, setBackfill] = React.useState(TIDE_BACKFILL);
   const [insightVersion, setInsightVersion] = React.useState(0);
   const [ouraSyncing, setOuraSyncing] = React.useState(false);
-  const [ouraSyncedAt, setOuraSyncedAt] = React.useState('synced 6:42a');
-
-  const toggle = (id, list, setList) =>
-    setList(list.map(h => h.id === id ? { ...h, checked: !h.checked } : h));
+  const ouraSyncedAt = ouraLoading ? 'syncing…' : OURA.syncedAtLabel;
 
   const insights = [
     'HRV up, RHR down. Body is recovered. Schedule the hard work this morning.',
@@ -48,15 +61,10 @@ export function Morning({ onOpenYesterday }) {
                       onClick={(e) => {
                         e.stopPropagation();
                         if (ouraSyncing) return;
+                        // Spin only — a real re-sync would hit the oura-proxy
+                        // edge fn; deferred until that contract is wired.
                         setOuraSyncing(true);
-                        setTimeout(() => {
-                          setOuraSyncing(false);
-                          const now = new Date();
-                          const h = ((now.getHours() % 12) || 12);
-                          const m = String(now.getMinutes()).padStart(2, '0');
-                          const ap = now.getHours() < 12 ? 'a' : 'p';
-                          setOuraSyncedAt(`synced ${h}:${m}${ap}`);
-                        }, 900);
+                        setTimeout(() => setOuraSyncing(false), 900);
                       }}>
                 <IconRegen />
               </button>
@@ -108,7 +116,7 @@ export function Morning({ onOpenYesterday }) {
           {habits.map(h => (
             <div key={h.id} className={`tide-item ${h.checked ? 'checked' : ''}`}>
               <button className={`tide-check ${h.checked ? 'checked' : ''}`}
-                      onClick={() => toggle(h.id, habits, setHabits)}>
+                      onClick={() => toggleHabit(h.id)}>
                 <IconCheck />
               </button>
               <div className="tide-label">{h.label}</div>
