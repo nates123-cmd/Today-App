@@ -5,6 +5,7 @@ import { Triage } from './surfaces/Triage.jsx'
 import { Scheduling } from './surfaces/Scheduling.jsx'
 import { Live } from './surfaces/Live.jsx'
 import { PillarBlockView } from './surfaces/PillarBlockView.jsx'
+import { DayOverlay } from './surfaces/DayOverlay.jsx'
 import { usePlacedBlocks } from './lib/usePlacedBlocks.js'
 
 const TODAY_KEY = 'today.lastOpened'
@@ -12,26 +13,6 @@ const PAGE_KEY = 'today.lastPage'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
-}
-
-function DayOverlayStub({ kind, onClose }) {
-  if (!kind) return null
-  return (
-    <div
-      className={`day-overlay ${kind === 'yesterday' ? 'in-left' : 'in-right'} visible`}
-      data-screen-label={kind === 'yesterday' ? '← Yesterday' : '→ Tomorrow'}
-    >
-      <button className="day-overlay-close" onClick={onClose}>
-        close
-      </button>
-      <div className="day-overlay-title">
-        {kind === 'yesterday' ? 'Yesterday' : 'Tomorrow'}
-      </div>
-      <div className="day-overlay-sub">
-        {kind === 'yesterday' ? 'reflection — port pending' : 'preview — port pending'}
-      </div>
-    </div>
-  )
 }
 
 export default function App() {
@@ -180,7 +161,7 @@ export default function App() {
           </div>
         )}
 
-        <DayOverlayStub kind={dayOverlay} onClose={() => setDayOverlay(null)} />
+        <DayOverlay kind={dayOverlay} onClose={() => setDayOverlay(null)} />
 
         {openBlock && <PillarBlockView block={openBlock} onClose={() => setOpenBlock(null)} />}
       </div>
