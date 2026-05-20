@@ -5,10 +5,13 @@ import './surfaces.css'
 import './surfaces2.css'
 import './shell.css'
 import App from './App.jsx'
+import { AuthGate } from './auth/AuthGate.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <AuthGate>
+      <App />
+    </AuthGate>
   </StrictMode>,
 )
 
