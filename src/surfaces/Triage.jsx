@@ -1268,7 +1268,7 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
 }
 
 export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsChange }) {
-  const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus } = usePillars()
+  const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus, updateTask: writeTaskPatch, getTaskSnapshot } = usePillars()
 
   const initial = React.useMemo(() => {
     if (initialProgress === 'empty')
@@ -1430,8 +1430,41 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
 
   const toggle = (id) => setPillarState(s => ({ ...s, [id]: s[id] === 'collapsed' ? 'open' : 'collapsed' }));
 
+  // For each toast: capture pre-state per task so undo can replay it.
+  const tomorrowISO = () => {
+    const t = new Date(); t.setDate(t.getDate() + 1);
+    return t.toISOString().slice(0, 10);
+  };
+  const patchForKind = (kind) => {
+    if (kind === 'pushed')  return { do_date: tomorrowISO() };
+    if (kind === 'dropped') return { status: 'dropped' };
+    if (kind === 'weekly')  return { status: 'triage', do_date: null };
+    return null;
+  };
+
+  // Skip writebacks for client-only ids (tasks added in this session that
+  // don't yet exist in course_tasks).
+  const isPersistedId = (id) =>
+    !!id && !String(id).startsWith('new-') && !String(id).startsWith('pnew-');
+
+  const applyAction = (kind, ids, opts = {}) => {
+    const persisted = ids.filter(isPersistedId);
+    const prevByTask = {};
+    persisted.forEach((id) => {
+      const snap = getTaskSnapshot && getTaskSnapshot(id);
+      if (snap) prevByTask[id] = snap;
+    });
+    setRemoved((s) => new Set([...s, ...ids]));
+    const patch = patchForKind(kind);
+    if (patch && writeTaskPatch) {
+      persisted.forEach((id) => writeTaskPatch(id, patch));
+    }
+    showToast(kind, ids, { ...opts, prevByTask });
+  };
+
   // Toast: small notification with an undo button. Lives for 2s, then
-  // disappears entirely. Tapping undo restores the removed items.
+  // disappears entirely. Tapping undo restores local state + replays prev
+  // DB state for each affected task.
   const showToast = (kind, ids, opts = {}) => {
     // Dedupe: ignore double-fires of the same action within 250ms.
     const now = Date.now();
@@ -1445,6 +1478,7 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
       kind, ids: [...ids], n: ids.length,
       scope: opts.scope || 'task',
       label: opts.label || null,
+      prevByTask: opts.prevByTask || {},
       key: now,
     });
     toastTimer.current = setTimeout(() => setToast(null), 2000);
@@ -1456,16 +1490,22 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
       toast.ids.forEach(id => out.delete(id));
       return out;
     });
+    // Replay prev DB state for each touched task.
+    if (writeTaskPatch && toast.prevByTask) {
+      Object.entries(toast.prevByTask).forEach(([id, prev]) => {
+        writeTaskPatch(id, prev);
+      });
+    }
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(null);
   };
 
-  const pushOne   = (id)  => { setRemoved(s => new Set([...s, id]));  showToast('pushed',  [id]); };
-  const dropOne   = (id)  => { setRemoved(s => new Set([...s, id]));  showToast('dropped', [id]); };
-  const weeklyOne = (id)  => { setRemoved(s => new Set([...s, id]));  showToast('weekly',  [id]); };
-  const pushMany  = (ids, opts) => { setRemoved(s => new Set([...s, ...ids])); showToast('pushed',  ids, opts); };
-  const dropMany  = (ids, opts) => { setRemoved(s => new Set([...s, ...ids])); showToast('dropped', ids, opts); };
-  const weeklyMany= (ids, opts) => { setRemoved(s => new Set([...s, ...ids])); showToast('weekly',  ids, opts); };
+  const pushOne   = (id)  => applyAction('pushed',  [id]);
+  const dropOne   = (id)  => applyAction('dropped', [id]);
+  const weeklyOne = (id)  => applyAction('weekly',  [id]);
+  const pushMany  = (ids, opts) => applyAction('pushed',  ids, opts);
+  const dropMany  = (ids, opts) => applyAction('dropped', ids, opts);
+  const weeklyMany= (ids, opts) => applyAction('weekly',  ids, opts);
 
   // ─── Reorder pillars ───
   const startReorder = (id, e) => {

@@ -12,8 +12,9 @@ const PILLAR_DEFS = [
   { id: 'open', name: 'Open Tasks', color: 'open', courseTag: null },
 ]
 
-// Course task statuses that are NOT in Today's triage backlog.
-const HIDDEN_STATUSES = new Set(['done', 'dropped', 'archived'])
+// Course task statuses that are NOT in Today's triage backlog. 'triage' is
+// Course's parked/"Someday" bucket — not part of the morning ritual.
+const HIDDEN_STATUSES = new Set(['done', 'dropped', 'archived', 'triage'])
 
 function projectMeta(p) {
   if (p.work_area) return p.work_area
@@ -29,6 +30,7 @@ function shapeTask(t) {
     estConfirmed: !!t.effort,
     depth: t.work_type === 'deep' || t.work_type === 'admin' ? t.work_type : null,
     status: t.status,
+    doDate: t.do_date,
     projectId: t.project_id,
   }
 }
@@ -137,5 +139,30 @@ export function usePillars() {
     }
   }, [])
 
-  return { pillars, loading, error, refresh, updateTaskStatus }
+  // Generic patch — used by push/drop/weekly + their undo replays.
+  const updateTask = useCallback(async (taskId, patch) => {
+    const res = await supabase.from('course_tasks').update(patch).eq('id', taskId)
+    if (res.error) console.error('updateTask failed', res.error)
+  }, [])
+
+  // Look up a task's current persistable fields by id (so push/drop/weekly
+  // handlers can capture pre-state for undo). Returns null if not found.
+  const getTaskSnapshot = useCallback(
+    (taskId) => {
+      for (const p of pillars) {
+        for (const t of p.openTasks ?? []) {
+          if (t.id === taskId) return { status: t.status, do_date: t.doDate ?? null }
+        }
+        for (const proj of p.projects ?? []) {
+          for (const t of proj.tasks ?? []) {
+            if (t.id === taskId) return { status: t.status, do_date: t.doDate ?? null }
+          }
+        }
+      }
+      return null
+    },
+    [pillars]
+  )
+
+  return { pillars, loading, error, refresh, updateTaskStatus, updateTask, getTaskSnapshot }
 }
