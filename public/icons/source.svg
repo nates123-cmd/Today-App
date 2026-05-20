@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <rect width="1024" height="1024" rx="225" fill="#2a3556"/>
+  <g transform="translate(0, 0) scale(6.737)">
+    <ellipse cx="72" cy="142" rx="44" ry="3.5" fill="#0a0a18" opacity="0.5"/>
+    <rect x="32" y="30" width="68" height="108" rx="1.5" fill="#c8b078"/>
+    <rect x="30" y="28" width="68" height="108" rx="3" fill="#1a0e0a"/>
+    <rect x="30" y="28" width="3" height="108" fill="#2a1a14"/>
+    <rect x="30" y="28" width="68" height="11" fill="#0a0402"/>
+    <line x1="38" y1="33.5" x2="44" y2="33.5" stroke="#6a5040" stroke-width="2"/>
+    <line x1="48" y1="33.5" x2="54" y2="33.5" stroke="#6a5040" stroke-width="2"/>
+    <line x1="58" y1="33.5" x2="64" y2="33.5" stroke="#6a5040" stroke-width="2"/>
+    <line x1="68" y1="33.5" x2="74" y2="33.5" stroke="#6a5040" stroke-width="2"/>
+    <line x1="78" y1="33.5" x2="84" y2="33.5" stroke="#6a5040" stroke-width="2"/>
+    <line x1="88" y1="33.5" x2="94" y2="33.5" stroke="#6a5040" stroke-width="2"/>
+    <rect x="108" y="36" width="6" height="92" rx="2.5" fill="#c8c8c8"/>
+    <rect x="109" y="36" width="2" height="92" fill="#f0f0f0"/>
+    <rect x="112.5" y="36" width="1.5" height="92" fill="#909090"/>
+    <rect x="108" y="33" width="6" height="3" rx="1" fill="#808080"/>
+    <path d="M 108 128 L 111 136 L 114 128 Z" fill="#a0a0a0"/>
+    <circle cx="111" cy="137" r="1.5" fill="#202020"/>
+    <rect x="106" y="48" width="3" height="20" rx="1" fill="#a8a8a8"/>
+    <rect x="106.5" y="48" width="1" height="20" fill="#c8c8c8"/>
+  </g>
+</svg>
