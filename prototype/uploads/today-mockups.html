@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Today — mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400;9..144,500;9..144,600&family=Inter+Tight:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* DARK (default) — warm-dark palette with a green undertone.
+       Cool enough to differentiate from Ink's indigo and Stock's parchment. */
+    --bg-canvas: #1a1d1a;
+    --bg-surface: #21241f;
+    --bg-elevated: #2a2d27;
+    --bg-deep: #14171313;
+
+    --ink-primary: #e8e3d6;
+    --ink-secondary: #a8a397;
+    --ink-tertiary: #6e6a60;
+    --ink-faint: #4a463e;
+
+    --divider: #2f322a;
+    --divider-strong: #3a3d33;
+
+    /* Single warm accent — the muted amber that does most of the work */
+    --accent: #c89456;
+    --accent-soft: #c8945633;
+    --accent-faint: #c8945614;
+
+    /* Pillar colors — distinct, but all warm-dark-compatible */
+    --pillar-arrow: #c47c5a;     /* terracotta — work, forward motion */
+    --pillar-sunny: #8ba66b;     /* sage — personal, wellness */
+    --pillar-life: #a89968;      /* dusty gold — admin, ambient */
+    --pillar-open: #6e6a60;      /* the ink-tertiary, pillarless */
+
+    --pillar-arrow-soft: #c47c5a1f;
+    --pillar-sunny-soft: #8ba66b1f;
+    --pillar-life-soft: #a899681f;
+
+    /* Gallery background — slightly darker than canvas */
+    --gallery-bg: #0d0f0d;
+    --phone-shadow: 0 30px 80px -20px rgba(0,0,0,0.5);
+    --phone-frame-outer: #0a0c0a;
+    --phone-frame-inner: #2a2d27;
+
+    /* Push-next CTA — dark text on accent in dark mode */
+    --push-next-fg: #1a1d1a;
+
+    /* Typography */
+    --font-display: 'Fraunces', Georgia, serif;
+    --font-body: 'Inter Tight', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  /* LIGHT — Linen. Warm paper with a subtle green undertone that threads
+     the cockpit identity (Today's dark mode uses moss-grey) into light mode
+     without copying Ink's aged-paper or Stock's parchment. */
+  [data-theme="light"] {
+    --bg-canvas: #f0ece0;
+    --bg-surface: #e6e1d2;
+    --bg-elevated: #dad4c1;
+    --bg-deep: #cec8b3;
+
+    --ink-primary: #2a2820;
+    --ink-secondary: #5a564a;
+    --ink-tertiary: #8a8676;
+    --ink-faint: #b8b3a0;
+
+    --divider: #cec8b3;
+    --divider-strong: #b8b099;
+
+    /* Accent shifts cooler & more saturated for light bg contrast */
+    --accent: #a8632a;
+    --accent-soft: #a8632a26;
+    --accent-faint: #a8632a10;
+
+    /* Pillar colors — same hue, deeper saturation for light bg */
+    --pillar-arrow: #a05a3a;
+    --pillar-sunny: #5d7d3f;
+    --pillar-life: #8a7438;
+    --pillar-open: #8a8676;
+
+    --pillar-arrow-soft: #a05a3a1a;
+    --pillar-sunny-soft: #5d7d3f1a;
+    --pillar-life-soft: #8a74381a;
+
+    --gallery-bg: #d6cfba;
+    --phone-shadow: 0 30px 80px -20px rgba(60,50,30,0.25);
+    --phone-frame-outer: #b8b099;
+    --phone-frame-inner: #e6e1d2;
+
+    --push-next-fg: #faf6ec;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    background: var(--gallery-bg);
+    color: var(--ink-primary);
+    font-family: var(--font-body);
+    font-weight: 400;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+
+  /* Theme toggle — pill switch in the gallery header */
+  .theme-toggle {
+    display: inline-flex;
+    background: var(--bg-surface);
+    border: 1px solid var(--divider);
+    border-radius: 999px;
+    padding: 4px;
+    margin-top: 20px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    position: relative;
+    transition: background 0.4s ease, border-color 0.4s ease;
+  }
+
+  .theme-toggle button {
+    background: transparent;
+    border: none;
+    padding: 8px 18px;
+    color: var(--ink-tertiary);
+    cursor: pointer;
+    font-family: inherit;
+    font-size: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    border-radius: 999px;
+    position: relative;
+    z-index: 1;
+    transition: color 0.3s ease;
+  }
+
+  .theme-toggle button.active {
+    color: var(--ink-primary);
+  }
+
+  .theme-toggle .slider {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    width: calc(50% - 4px);
+    background: var(--bg-elevated);
+    border-radius: 999px;
+    transition: transform 0.3s cubic-bezier(0.4, 0.0, 0.2, 1), background 0.4s ease;
+  }
+
+  .theme-toggle[data-state="light"] .slider {
+    transform: translateX(100%);
+  }
+
+  /* Gallery showcase scaffolding (NOT part of the app — just the mockup gallery) */
+  .gallery {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 60px 40px 100px;
+  }
+
+  .gallery-header {
+    text-align: center;
+    margin-bottom: 60px;
+    color: var(--ink-secondary);
+  }
+
+  .gallery-header h1 {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: 42px;
+    letter-spacing: -0.02em;
+    color: var(--ink-primary);
+    margin-bottom: 8px;
+  }
+
+  .gallery-header p {
+    font-size: 13px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.02em;
+  }
+
+  .surfaces {
+    display: flex;
+    gap: 48px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .surface-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .surface-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .surface-label .state {
+    color: var(--accent);
+    margin-left: 8px;
+  }
+
+  /* Phone frame — the actual app surface */
+  .phone {
+    width: 380px;
+    height: 800px;
+    background: var(--bg-canvas);
+    border-radius: 38px;
+    border: 1px solid var(--divider-strong);
+    overflow: hidden;
+    position: relative;
+    box-shadow:
+      var(--phone-shadow),
+      0 0 0 8px var(--phone-frame-outer),
+      0 0 0 9px var(--phone-frame-inner);
+    transition: background 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+  }
+
+  .phone-inner {
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  .phone-inner::-webkit-scrollbar {
+    width: 0;
+    background: transparent;
+  }
+
+  /* Status bar — purely decorative for the mockup */
+  .status-bar {
+    height: 44px;
+    padding: 14px 24px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-primary);
+    position: sticky;
+    top: 0;
+    background: var(--bg-canvas);
+    z-index: 10;
+  }
+
+  .status-bar .right {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    color: var(--ink-secondary);
+  }
+
+  /* ============================================================
+     WELCOME SCREEN
+     ============================================================ */
+  .welcome {
+    height: calc(800px - 44px);
+    padding: 60px 36px 48px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: var(--bg-canvas);
+    position: relative;
+    transition: background 0.4s ease;
+  }
+
+  .welcome::before {
+    /* subtle warm glow at top */
+    content: '';
+    position: absolute;
+    top: -100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 400px;
+    height: 300px;
+    background: radial-gradient(ellipse, var(--accent-soft) 0%, transparent 60%);
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity 0.4s ease;
+  }
+
+  [data-theme="light"] .welcome::before {
+    opacity: 0.5;
+  }
+
+  .welcome-top {
+    position: relative;
+    z-index: 1;
+    padding-top: 40px;
+  }
+
+  .welcome-day {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    margin-bottom: 16px;
+  }
+
+  .welcome-date {
+    font-family: var(--font-display);
+    font-weight: 300;
+    font-size: 72px;
+    line-height: 0.95;
+    letter-spacing: -0.04em;
+    color: var(--ink-primary);
+  }
+
+  .welcome-date .month {
+    display: block;
+    font-size: 28px;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--ink-secondary);
+    margin-top: 12px;
+    letter-spacing: -0.01em;
+  }
+
+  .welcome-mantra {
+    position: relative;
+    z-index: 1;
+    padding: 0 8px;
+  }
+
+  .welcome-mantra-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .welcome-mantra-label::before,
+  .welcome-mantra-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--divider);
+  }
+
+  .welcome-mantra-text {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--ink-primary);
+    font-style: italic;
+    text-align: center;
+    letter-spacing: -0.005em;
+  }
+
+  .welcome-mantra-source {
+    text-align: center;
+    margin-top: 14px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--ink-tertiary);
+    text-transform: uppercase;
+  }
+
+  .welcome-bottom {
+    position: relative;
+    z-index: 1;
+    border-top: 1px solid var(--divider);
+    padding-top: 20px;
+  }
+
+  .firstup-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .regen-btn {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1px solid var(--divider-strong);
+    background: transparent;
+    color: var(--ink-tertiary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+
+  .regen-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    transform: rotate(45deg);
+  }
+
+  .regen-btn svg {
+    width: 11px;
+    height: 11px;
+  }
+
+  .firstup-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .firstup-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 400;
+    color: var(--ink-primary);
+  }
+
+  .firstup-meta {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-secondary);
+  }
+
+  .firstup-relative {
+    color: var(--accent);
+    margin-left: 6px;
+  }
+
+  .swipe-hint {
+    margin-top: 32px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--ink-tertiary);
+    text-transform: uppercase;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .swipe-hint .arrow {
+    font-size: 14px;
+    color: var(--ink-faint);
+    animation: float 2.4s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); opacity: 0.6; }
+    50% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  /* ============================================================
+     PAGE TWO — TRIAGE SURFACE
+     ============================================================ */
+  .triage {
+    padding: 24px 20px 100px;
+    background: var(--bg-canvas);
+  }
+
+  .triage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 24px;
+  }
+
+  .triage-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    color: var(--ink-primary);
+  }
+
+  .triage-progress {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.05em;
+  }
+
+  .triage-progress .done { color: var(--accent); }
+
+  /* Calendar summary at the top */
+  .cal-summary {
+    background: var(--bg-surface);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+  }
+
+  .cal-summary-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+    margin-bottom: 10px;
+  }
+
+  .cal-event {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    gap: 14px;
+  }
+
+  .cal-event + .cal-event {
+    border-top: 1px solid var(--divider);
+  }
+
+  .cal-event-time {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--ink-secondary);
+    width: 78px;
+    flex-shrink: 0;
+  }
+
+  .cal-event-bar {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 2px;
+  }
+
+  .cal-event-title {
+    font-size: 14px;
+    color: var(--ink-primary);
+    font-weight: 400;
+  }
+
+  /* Pillar boxes */
+  .pillar {
+    background: var(--bg-surface);
+    border-radius: 14px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    border: 1px solid transparent;
+    transition: border-color 0.2s ease;
+  }
+
+  .pillar.collapsed {
+    background: var(--bg-deep);
+    border-color: var(--divider);
+  }
+
+  .pillar-header {
+    padding: 16px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+  }
+
+  .pillar-name {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pillar-marker {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+
+  .pillar-marker.arrow { background: var(--pillar-arrow); }
+  .pillar-marker.sunny { background: var(--pillar-sunny); }
+  .pillar-marker.life { background: var(--pillar-life); }
+  .pillar-marker.open { background: var(--pillar-open); }
+
+  .pillar-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    color: var(--ink-primary);
+  }
+
+  .pillar.collapsed .pillar-title {
+    color: var(--ink-secondary);
+  }
+
+  .pillar-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pillar-count {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.05em;
+  }
+
+  .pillar.collapsed .pillar-count {
+    color: var(--accent);
+  }
+
+  .pillar-chevron {
+    color: var(--ink-tertiary);
+    font-size: 12px;
+    transition: transform 0.2s ease;
+  }
+
+  .pillar.collapsed .pillar-chevron {
+    transform: rotate(-90deg);
+  }
+
+  .pillar-body {
+    padding: 0 18px 16px;
+  }
+
+  .project {
+    padding: 10px 0 6px;
+    border-top: 1px solid var(--divider);
+  }
+
+  .project-name {
+    font-size: 14px;
+    color: var(--ink-primary);
+    font-weight: 500;
+    margin-bottom: 6px;
+    letter-spacing: -0.005em;
+  }
+
+  .task {
+    padding: 7px 0;
+    padding-left: 14px;
+    font-size: 13px;
+    color: var(--ink-secondary);
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .task::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--ink-faint);
+    margin-top: 8px;
+    flex-shrink: 0;
+    margin-left: -10px;
+  }
+
+  /* Swiped-right tasks are removed from the DOM in real usage.
+     This class is here only for reference — not used in current mockup. */
+  .task.removed {
+    display: none;
+  }
+
+  .task-body {
+    flex: 1;
+  }
+
+  /* Push-to-next CTA — only appears when all Pillars collapsed */
+  .push-next {
+    margin-top: 28px;
+    padding: 16px 20px;
+    background: var(--accent);
+    color: var(--push-next-fg);
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--font-body);
+    font-weight: 500;
+    font-size: 15px;
+    letter-spacing: -0.005em;
+    cursor: pointer;
+    border: none;
+    width: 100%;
+    transition: all 0.2s ease;
+  }
+
+  .push-next:hover {
+    transform: translateY(-1px);
+  }
+
+  .push-next-hint {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    opacity: 0.7;
+    letter-spacing: 0.05em;
+  }
+
+  /* When not all collapsed: hint at what's blocking */
+  .triage-blocked {
+    margin-top: 28px;
+    padding: 14px 18px;
+    border: 1px dashed var(--divider-strong);
+    border-radius: 12px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.05em;
+  }
+
+  /* ============================================================
+     PAGE FOUR — LIVE SURFACE
+     ============================================================ */
+  .live {
+    padding: 24px 20px 60px;
+    background: var(--bg-canvas);
+  }
+
+  .live-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+  }
+
+  .live-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 26px;
+    letter-spacing: -0.02em;
+    color: var(--ink-primary);
+  }
+
+  .live-now {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .live-now::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .live-subtitle {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.1em;
+    margin-bottom: 24px;
+    text-transform: uppercase;
+  }
+
+  /* Calendar — time slots */
+  .timeline {
+    position: relative;
+  }
+
+  .time-slot {
+    display: flex;
+    gap: 14px;
+    min-height: 56px;
+    align-items: stretch;
+    position: relative;
+  }
+
+  .time-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    width: 44px;
+    flex-shrink: 0;
+    text-align: right;
+    padding-top: 2px;
+    letter-spacing: 0.02em;
+  }
+
+  .time-content {
+    flex: 1;
+    padding-bottom: 8px;
+    position: relative;
+  }
+
+  /* The "now" marker */
+  .now-line {
+    position: absolute;
+    left: 56px;
+    right: 0;
+    height: 1px;
+    background: var(--accent);
+    z-index: 5;
+  }
+
+  .now-line::before {
+    content: '';
+    position: absolute;
+    left: -6px;
+    top: -3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Calendar block */
+  .block {
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 4px;
+    border-left: 3px solid;
+    background: var(--bg-surface);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .block:hover {
+    transform: translateX(2px);
+  }
+
+  .block.arrow {
+    background: var(--pillar-arrow-soft);
+    border-left-color: var(--pillar-arrow);
+  }
+
+  .block.sunny {
+    background: var(--pillar-sunny-soft);
+    border-left-color: var(--pillar-sunny);
+  }
+
+  .block.life {
+    background: var(--pillar-life-soft);
+    border-left-color: var(--pillar-life);
+  }
+
+  .block.meeting {
+    background: var(--bg-elevated);
+    border-left-color: var(--ink-secondary);
+  }
+
+  .block-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--ink-primary);
+    letter-spacing: -0.005em;
+  }
+
+  .block-detail {
+    font-size: 11px;
+    color: var(--ink-tertiary);
+    margin-top: 2px;
+    font-family: var(--font-mono);
+    letter-spacing: 0.02em;
+  }
+
+  .block.active {
+    background: var(--accent-soft);
+    border-left-color: var(--accent);
+    border-left-width: 4px;
+  }
+
+  .block.active .block-title {
+    color: var(--ink-primary);
+  }
+
+  .block.active::after {
+    content: 'focusing';
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .block.active {
+    position: relative;
+  }
+
+  /* Empty slot — suggestion */
+  .suggestion {
+    border: 1px dashed var(--divider-strong);
+    border-radius: 10px;
+    padding: 9px 14px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: var(--ink-tertiary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .suggestion:hover {
+    border-color: var(--accent);
+    color: var(--ink-secondary);
+  }
+
+  .suggestion-text {
+    font-style: italic;
+  }
+
+  .suggestion-pillar {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+
+  /* Open Tasks affordance — default expanded */
+  .open-tasks {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--divider);
+  }
+
+  .open-tasks-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 14px;
+  }
+
+  .open-tasks-title {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--ink-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .open-tasks-see-more {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+  }
+
+  .open-task {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--divider);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .open-task:last-child {
+    border-bottom: none;
+  }
+
+  .open-task-pillar-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .open-task-pillar-dot.arrow { background: var(--pillar-arrow); }
+  .open-task-pillar-dot.sunny { background: var(--pillar-sunny); }
+  .open-task-pillar-dot.life { background: var(--pillar-life); }
+
+  .open-task-text {
+    font-size: 13px;
+    color: var(--ink-secondary);
+    flex: 1;
+    letter-spacing: -0.005em;
+  }
+
+  .open-task-est {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--ink-tertiary);
+    letter-spacing: 0.05em;
+  }
+
+  /* Day-axis nav at very bottom */
+  .day-nav {
+    position: sticky;
+    bottom: 0;
+    margin-top: 32px;
+    padding: 12px 0;
+    background: linear-gradient(to top, var(--bg-canvas) 80%, transparent);
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--ink-tertiary);
+  }
+
+  .day-nav .current {
+    color: var(--ink-primary);
+    border-bottom: 1px solid var(--accent);
+    padding-bottom: 2px;
+  }
+
+  /* Triage-specific bottom nav */
+  .triage .day-nav,
+  .live .day-nav {
+    margin-left: -20px;
+    margin-right: -20px;
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+</style>
+</head>
+<body>
+
+<div class="gallery">
+
+  <header class="gallery-header">
+    <h1>Today</h1>
+    <p>three surfaces · mockup pass 01</p>
+    <div class="theme-toggle" data-state="dark" id="themeToggle">
+      <span class="slider"></span>
+      <button class="active" data-theme-set="dark">dark</button>
+      <button data-theme-set="light">light</button>
+    </div>
+  </header>
+
+  <div class="surfaces">
+
+    <!-- ============================================================
+         SURFACE 1 — WELCOME SCREEN
+         First open of the day. Calm threshold before execution.
+         ============================================================ -->
+    <div class="surface-wrap">
+      <div class="surface-label">welcome <span class="state">first open of day</span></div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div class="status-bar">
+            <span>7:24</span>
+            <span class="right">●●●</span>
+          </div>
+
+          <div class="welcome">
+            <div class="welcome-top">
+              <div class="welcome-day">Tuesday</div>
+              <div class="welcome-date">
+                19
+                <span class="month">May, 2026</span>
+              </div>
+            </div>
+
+            <div class="welcome-mantra">
+              <div class="welcome-mantra-label">mantra</div>
+              <div class="welcome-mantra-text">
+                "The impediment to action advances action. What stands in the way becomes the way."
+              </div>
+              <div class="welcome-mantra-source">— Marcus Aurelius</div>
+            </div>
+
+            <div class="welcome-bottom">
+              <div class="firstup-label">
+                <span>first up</span>
+                <button class="regen-btn" title="Pull latest calendar">
+                  <svg viewBox="0 0 12 12" fill="none">
+                    <path d="M9.5 4.5L7.5 6.5M9.5 4.5L11.5 6.5M9.5 4.5C9.5 2.5 7.8 1 6 1C4.2 1 2.5 2.5 2.5 4.5M2.5 7.5L4.5 5.5M2.5 7.5L0.5 5.5M2.5 7.5C2.5 9.5 4.2 11 6 11C7.8 11 9.5 9.5 9.5 7.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+                  </svg>
+                </button>
+              </div>
+              <div class="firstup-content">
+                <span class="firstup-title">Call with Jon</span>
+                <span class="firstup-meta">10:00 AM<span class="firstup-relative">· in 2h 36m</span></span>
+              </div>
+
+              <div class="swipe-hint">
+                <span class="arrow">↑</span>
+                <span>swipe to begin</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SURFACE 2 — PAGE TWO (TRIAGE)
+         Mid-triage state: Arrow collapsed (committed), Sunny open, Life still pending.
+         ============================================================ -->
+    <div class="surface-wrap">
+      <div class="surface-label">page two · triage <span class="state">mid-triage</span></div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div class="status-bar">
+            <span>8:12</span>
+            <span class="right">●●●</span>
+          </div>
+
+          <div class="triage">
+            <div class="triage-header">
+              <div class="triage-title">Triage</div>
+              <div class="triage-progress"><span class="done">1</span> / 4 committed</div>
+            </div>
+
+            <!-- Calendar summary -->
+            <div class="cal-summary">
+              <div class="cal-summary-label">today's calendar</div>
+              <div class="cal-event">
+                <div class="cal-event-time">10:00 — 11:00</div>
+                <div class="cal-event-bar" style="background: var(--pillar-arrow);"></div>
+                <div class="cal-event-title">Call with Jon</div>
+              </div>
+              <div class="cal-event">
+                <div class="cal-event-time">11:30 — 12:00</div>
+                <div class="cal-event-bar" style="background: var(--pillar-arrow);"></div>
+                <div class="cal-event-title">Drane sync</div>
+              </div>
+              <div class="cal-event">
+                <div class="cal-event-time">3:00 — 4:00</div>
+                <div class="cal-event-bar" style="background: var(--pillar-arrow);"></div>
+                <div class="cal-event-title">Accenture review</div>
+              </div>
+            </div>
+
+            <!-- Arrow — collapsed (committed) -->
+            <div class="pillar collapsed">
+              <div class="pillar-header">
+                <div class="pillar-name">
+                  <div class="pillar-marker arrow"></div>
+                  <div class="pillar-title">Arrow</div>
+                </div>
+                <div class="pillar-meta">
+                  <div class="pillar-count">4 committed</div>
+                  <div class="pillar-chevron">▾</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Sunny — open, being triaged -->
+            <div class="pillar">
+              <div class="pillar-header">
+                <div class="pillar-name">
+                  <div class="pillar-marker sunny"></div>
+                  <div class="pillar-title">Sunny</div>
+                </div>
+                <div class="pillar-meta">
+                  <div class="pillar-count">3 kept · 3 pushed</div>
+                  <div class="pillar-chevron">▾</div>
+                </div>
+              </div>
+              <div class="pillar-body">
+                <div class="project">
+                  <div class="project-name">Music production · grimey neo-soul EP</div>
+                  <div class="task">
+                    <div class="task-body">Track 3 — work out the Eb9 transition bridge</div>
+                  </div>
+                </div>
+                <div class="project">
+                  <div class="project-name">Pizza setup</div>
+                  <div class="task">
+                    <div class="task-body">Season the steel before this weekend</div>
+                  </div>
+                </div>
+                <div class="project">
+                  <div class="project-name">Fitness</div>
+                  <div class="task">
+                    <div class="task-body">Zone 2 — 45 min after work</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Life — not yet triaged -->
+            <div class="pillar">
+              <div class="pillar-header">
+                <div class="pillar-name">
+                  <div class="pillar-marker life"></div>
+                  <div class="pillar-title">Life</div>
+                </div>
+                <div class="pillar-meta">
+                  <div class="pillar-count">5 open</div>
+                  <div class="pillar-chevron">▾</div>
+                </div>
+              </div>
+              <div class="pillar-body">
+                <div class="project">
+                  <div class="project-name">Apartment</div>
+                  <div class="task">
+                    <div class="task-body">Renew gym membership</div>
+                  </div>
+                  <div class="task">
+                    <div class="task-body">Call landlord re: bathroom fan</div>
+                  </div>
+                </div>
+                <div class="project">
+                  <div class="project-name">Admin</div>
+                  <div class="task">
+                    <div class="task-body">Amex statement review</div>
+                  </div>
+                  <div class="task">
+                    <div class="task-body">Book dentist follow-up</div>
+                  </div>
+                  <div class="task">
+                    <div class="task-body">Reply to Mom about June</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Open Tasks pillar -->
+            <div class="pillar">
+              <div class="pillar-header">
+                <div class="pillar-name">
+                  <div class="pillar-marker open"></div>
+                  <div class="pillar-title">Open Tasks</div>
+                </div>
+                <div class="pillar-meta">
+                  <div class="pillar-count">2 open</div>
+                  <div class="pillar-chevron">▾</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="triage-blocked">
+              3 more pillars to commit
+            </div>
+
+            <div class="day-nav">
+              <span>yesterday</span>
+              <span class="current">today</span>
+              <span>tomorrow</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================================
+         SURFACE 3 — PAGE FOUR (LIVE)
+         Workday in motion. 11:14am. Currently in an Arrow block.
+         ============================================================ -->
+    <div class="surface-wrap">
+      <div class="surface-label">page four · live <span class="state">11:14 AM · in arrow block</span></div>
+      <div class="phone">
+        <div class="phone-inner">
+          <div class="status-bar">
+            <span>11:14</span>
+            <span class="right">●●●</span>
+          </div>
+
+          <div class="live">
+            <div class="live-header">
+              <div class="live-title">Today</div>
+              <div class="live-now">11:14</div>
+            </div>
+            <div class="live-subtitle">Tuesday · May 19</div>
+
+            <div class="timeline">
+
+              <!-- 9am -->
+              <div class="time-slot">
+                <div class="time-label">9</div>
+                <div class="time-content">
+                  <div class="block arrow">
+                    <div class="block-title">Arrow · Morocco onboarding doc</div>
+                    <div class="block-detail">9:00 — 10:00 · deep work</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 10am — meeting -->
+              <div class="time-slot">
+                <div class="time-label">10</div>
+                <div class="time-content">
+                  <div class="block meeting">
+                    <div class="block-title">Call with Jon</div>
+                    <div class="block-detail">10:00 — 11:00</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 11am — active block, now line crosses here -->
+              <div class="time-slot">
+                <div class="time-label">11</div>
+                <div class="time-content">
+                  <div class="block arrow active">
+                    <div class="block-title">Arrow · Drane sync prep</div>
+                    <div class="block-detail">11:00 — 11:30 · 16 min left</div>
+                  </div>
+                  <div class="block meeting" style="margin-top: 4px;">
+                    <div class="block-title">Drane sync</div>
+                    <div class="block-detail">11:30 — 12:00</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 12 — open slot with suggestion -->
+              <div class="time-slot">
+                <div class="time-label">12</div>
+                <div class="time-content">
+                  <div class="suggestion">
+                    <span class="suggestion-text">"Lunch — sourdough leftovers"</span>
+                    <span class="suggestion-pillar">routine</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 1pm — open with suggestion -->
+              <div class="time-slot">
+                <div class="time-label">1</div>
+                <div class="time-content">
+                  <div class="suggestion">
+                    <span class="suggestion-text">"Amex statement review · 25 min"</span>
+                    <span class="suggestion-pillar">life</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 2pm — open -->
+              <div class="time-slot">
+                <div class="time-label">2</div>
+                <div class="time-content">
+                  <div class="block sunny">
+                    <div class="block-title">Sunny · Track 3 bridge</div>
+                    <div class="block-detail">2:00 — 3:00 · deep work</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 3pm — meeting -->
+              <div class="time-slot">
+                <div class="time-label">3</div>
+                <div class="time-content">
+                  <div class="block meeting">
+                    <div class="block-title">Accenture review</div>
+                    <div class="block-detail">3:00 — 4:00</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4pm -->
+              <div class="time-slot">
+                <div class="time-label">4</div>
+                <div class="time-content">
+                  <div class="suggestion">
+                    <span class="suggestion-text">"Casablanca lease — 6 days waiting"</span>
+                    <span class="suggestion-pillar">arrow</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 5pm — life admin block -->
+              <div class="time-slot">
+                <div class="time-label">5</div>
+                <div class="time-content">
+                  <div class="block life">
+                    <div class="block-title">Life · admin batch</div>
+                    <div class="block-detail">5:00 — 5:30</div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Open Tasks — default expanded -->
+            <div class="open-tasks">
+              <div class="open-tasks-header">
+                <div class="open-tasks-title">Open tasks</div>
+                <div class="open-tasks-see-more">See 7 more →</div>
+              </div>
+              <div class="open-task">
+                <div class="open-task-pillar-dot arrow"></div>
+                <div class="open-task-text">Confirm Casablanca lease terms with Cedric</div>
+                <div class="open-task-est">15m</div>
+              </div>
+              <div class="open-task">
+                <div class="open-task-pillar-dot arrow"></div>
+                <div class="open-task-text">Reply to Sarah re: Q3 onboarding plan</div>
+                <div class="open-task-est">10m</div>
+              </div>
+              <div class="open-task">
+                <div class="open-task-pillar-dot life"></div>
+                <div class="open-task-text">Reply to Mom about June</div>
+                <div class="open-task-est">5m</div>
+              </div>
+              <div class="open-task">
+                <div class="open-task-pillar-dot sunny"></div>
+                <div class="open-task-text">Season the steel before this weekend</div>
+                <div class="open-task-est">20m</div>
+              </div>
+            </div>
+
+            <div class="day-nav">
+              <span>yesterday</span>
+              <span class="current">today</span>
+              <span>tomorrow</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  (function() {
+    const toggle = document.getElementById('themeToggle');
+    const buttons = toggle.querySelectorAll('button');
+    const root = document.documentElement;
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const theme = btn.getAttribute('data-theme-set');
+        if (theme === 'dark') {
+          root.removeAttribute('data-theme');
+        } else {
+          root.setAttribute('data-theme', theme);
+        }
+        toggle.setAttribute('data-state', theme);
+        buttons.forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

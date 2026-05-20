@@ -1,0 +1,274 @@
+/* Today — design tokens & shared styles
+   Lifted from mockups, extended for full interactive prototype. */
+
+:root {
+  /* DARK (default) — warm-dark, green undertone */
+  --bg-canvas: #1a1d1a;
+  --bg-surface: #21241f;
+  --bg-elevated: #2a2d27;
+  --bg-deep: #14171313;
+  --bg-tinted: #2a2d2799;
+
+  --ink-primary: #e8e3d6;
+  --ink-secondary: #a8a397;
+  --ink-tertiary: #6e6a60;
+  --ink-faint: #4a463e;
+
+  --divider: #2f322a;
+  --divider-strong: #3a3d33;
+
+  --accent: #c89456;
+  --accent-soft: #c8945633;
+  --accent-faint: #c8945614;
+  --accent-strong: #d9a468;
+
+  /* Pillar colors */
+  --pillar-arrow: #c47c5a;
+  --pillar-sunny: #8ba66b;
+  --pillar-life:  #a89968;
+  --pillar-open:  #6e6a60;
+
+  --pillar-arrow-soft: #c47c5a1f;
+  --pillar-sunny-soft: #8ba66b1f;
+  --pillar-life-soft:  #a899681f;
+  --pillar-open-soft:  #6e6a601f;
+
+  /* Stage / phone shell */
+  --stage-bg: #0d0f0d;
+  --phone-shadow: 0 30px 80px -20px rgba(0,0,0,0.6);
+  --phone-frame-outer: #0a0c0a;
+  --phone-frame-inner: #2a2d27;
+
+  --push-next-fg: #1a1d1a;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'Inter Tight', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --row-gap: 14px;
+}
+
+[data-theme="light"] {
+  --bg-canvas: #f0ece0;
+  --bg-surface: #e6e1d2;
+  --bg-elevated: #dad4c1;
+  --bg-deep: #cec8b3;
+  --bg-tinted: #dad4c199;
+
+  --ink-primary: #2a2820;
+  --ink-secondary: #5a564a;
+  --ink-tertiary: #8a8676;
+  --ink-faint: #b8b3a0;
+
+  --divider: #cec8b3;
+  --divider-strong: #b8b099;
+
+  --accent: #a8632a;
+  --accent-soft: #a8632a26;
+  --accent-faint: #a8632a10;
+  --accent-strong: #8c4f1e;
+
+  --pillar-arrow: #a05a3a;
+  --pillar-sunny: #5d7d3f;
+  --pillar-life:  #8a7438;
+  --pillar-open:  #8a8676;
+
+  --pillar-arrow-soft: #a05a3a1a;
+  --pillar-sunny-soft: #5d7d3f1a;
+  --pillar-life-soft:  #8a74381a;
+  --pillar-open-soft:  #8a86761a;
+
+  --stage-bg: #d6cfba;
+  --phone-shadow: 0 30px 80px -20px rgba(60,50,30,0.25);
+  --phone-frame-outer: #b8b099;
+  --phone-frame-inner: #e6e1d2;
+
+  --push-next-fg: #faf6ec;
+}
+
+/* Density */
+[data-density="compact"] { --row-gap: 10px; }
+[data-density="comfy"]   { --row-gap: 18px; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--stage-bg);
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  font-weight: 400; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.4s ease, color 0.4s ease;
+  overflow: hidden;
+  height: 100vh;
+}
+
+button { font-family: inherit; cursor: pointer; }
+
+/* ────────────────────────── STAGE ────────────────────────── */
+.stage {
+  width: 100vw; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+
+.phone {
+  width: 390px; height: 820px;
+  background: var(--bg-canvas);
+  border-radius: 44px;
+  border: 1px solid var(--divider-strong);
+  overflow: hidden;
+  position: relative;
+  box-shadow:
+    var(--phone-shadow),
+    0 0 0 8px var(--phone-frame-outer),
+    0 0 0 9px var(--phone-frame-inner);
+  transition: background 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+}
+
+.status-bar {
+  height: 44px; padding: 14px 24px 0;
+  display: flex; justify-content: space-between; align-items: center;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 500;
+  color: var(--ink-primary);
+  position: absolute; top: 0; left: 0; right: 0;
+  background: transparent; z-index: 100;
+  pointer-events: none;
+}
+.status-bar .right { display: flex; gap: 6px; align-items: center; color: var(--ink-secondary); }
+
+/* The vertical pager: each surface is full-phone-height, snap-scrolled */
+.pager {
+  height: 100%;
+  overflow-y: auto; overflow-x: hidden;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+.pager::-webkit-scrollbar { width: 0; background: transparent; }
+.pager.no-snap { scroll-snap-type: none; }
+
+.page {
+  width: 100%; height: 100%;
+  overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none;
+  scroll-snap-align: start; scroll-snap-stop: always;
+  background: var(--bg-canvas);
+  position: relative;
+}
+.page::-webkit-scrollbar { width: 0; background: transparent; }
+
+/* Page-edge progress indicator (tiny dots on right edge) */
+.dot-rail {
+  position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 7px; z-index: 80;
+  pointer-events: none;
+}
+.dot-rail .dot {
+  width: 4px; height: 4px; border-radius: 50%;
+  background: var(--ink-faint);
+  transition: all 0.25s ease;
+}
+.dot-rail .dot.active { background: var(--accent); height: 14px; border-radius: 3px; }
+
+/* Day spine — sticky bottom on workday pages */
+.day-spine {
+  position: absolute; bottom: 24px; left: 0; right: 0;
+  display: flex; justify-content: center; gap: 28px;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--ink-tertiary); z-index: 50;
+  pointer-events: auto;
+}
+.day-spine-btn {
+  background: transparent; border: none;
+  color: inherit; font: inherit; letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer; padding: 4px 0;
+  transition: color 0.2s ease;
+}
+.day-spine-btn.current {
+  color: var(--ink-primary);
+  border-bottom: 1px solid var(--accent);
+  cursor: default;
+}
+.day-spine-btn:hover:not(.current) { color: var(--ink-secondary); }
+
+/* Reusable section headers */
+.h-display {
+  font-family: var(--font-display);
+  font-weight: 400; letter-spacing: -0.02em;
+  color: var(--ink-primary);
+}
+.h-mono {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+
+/* Pillar markers */
+.pillar-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0;
+}
+.pillar-dot.arrow { background: var(--pillar-arrow); }
+.pillar-dot.sunny { background: var(--pillar-sunny); }
+.pillar-dot.life  { background: var(--pillar-life); }
+.pillar-dot.open  { background: var(--pillar-open); }
+
+.regen-btn {
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--divider-strong);
+  background: transparent;
+  color: var(--ink-tertiary);
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease;
+}
+.regen-btn:hover { color: var(--accent); border-color: var(--accent); transform: rotate(45deg); }
+.regen-btn svg { width: 11px; height: 11px; }
+.regen-btn.spinning { color: var(--accent); border-color: var(--accent); animation: regen-spin 0.9s linear infinite; }
+@keyframes regen-spin { to { transform: rotate(360deg); } }
+
+/* Day-overlay (yesterday / tomorrow) */
+.day-overlay {
+  position: absolute; inset: 0; background: var(--bg-canvas);
+  z-index: 90; padding: 60px 24px 80px;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+  transform: translateX(100%);
+  transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+}
+.day-overlay::-webkit-scrollbar { width: 0; }
+.day-overlay.in-left  { transform: translateX(-100%); }
+.day-overlay.in-right { transform: translateX(100%); }
+.day-overlay.visible  { transform: translateX(0); }
+.day-overlay-title {
+  font-family: var(--font-display); font-size: 36px; font-weight: 300;
+  letter-spacing: -0.02em; color: var(--ink-primary);
+  margin-bottom: 4px;
+}
+.day-overlay-sub {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--ink-tertiary); margin-bottom: 30px;
+}
+.day-overlay-close {
+  position: absolute; top: 60px; right: 24px;
+  background: transparent; border: none; color: var(--ink-tertiary);
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); opacity: 0.6; }
+  50% { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fade-in 0.4s ease both; }
