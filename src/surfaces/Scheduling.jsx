@@ -192,7 +192,7 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
           setPlaced((prev) => [
           ...prev,
           {
-            id: `pb-${drag.pillarId}-${Date.now()}`,
+            id: crypto.randomUUID(),
             type: drag.pillarId, hour: clamped, duration: 30,
             title: drag.name,
             pillar: drag.pillarId
@@ -269,7 +269,7 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
     const text = adHocText.trim();
     if (text && adHocHour != null) {
       setPlaced((prev) => [...prev, {
-        id: `adhoc-${Date.now()}`, type: 'adhoc',
+        id: crypto.randomUUID(), type: 'adhoc',
         hour: adHocHour, duration: 30,
         title: text, pillar: null
       }]);

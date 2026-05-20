@@ -5,41 +5,13 @@ import { Triage } from './surfaces/Triage.jsx'
 import { Scheduling } from './surfaces/Scheduling.jsx'
 import { Live } from './surfaces/Live.jsx'
 import { PillarBlockView } from './surfaces/PillarBlockView.jsx'
-import { CAL_EVENTS, ROUTINES } from './data.js'
+import { usePlacedBlocks } from './lib/usePlacedBlocks.js'
 
 const TODAY_KEY = 'today.lastOpened'
 const PAGE_KEY = 'today.lastPage'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
-}
-
-function seedPlacedBlocks() {
-  const out = []
-  CAL_EVENTS.forEach((e) => {
-    const [sh, sm] = e.start.split(':').map((n) => parseInt(n, 10))
-    const [eh, em] = e.end.split(':').map((n) => parseInt(n, 10))
-    const dur = eh * 60 + (em || 0) - (sh * 60 + (sm || 0))
-    out.push({
-      id: e.id,
-      type: 'meeting',
-      hour: sh + (sm || 0) / 60,
-      duration: dur,
-      title: e.title,
-      pillar: null,
-    })
-  })
-  ROUTINES.filter((r) => r.autoPlaced).forEach((r) => {
-    out.push({
-      id: r.id,
-      type: 'routine',
-      hour: r.hour,
-      duration: r.duration,
-      title: r.name,
-      pillar: null,
-    })
-  })
-  return out
 }
 
 function DayOverlayStub({ kind, onClose }) {
@@ -85,7 +57,7 @@ export default function App() {
   })
 
   const [activePage, setActivePage] = useState(initialIdx)
-  const [placed, setPlaced] = useState(seedPlacedBlocks)
+  const { placed, setPlaced } = usePlacedBlocks()
   const [remainingMinsByPillar, setRemainingMinsByPillar] = useState({})
   const [dayOverlay, setDayOverlay] = useState(null)
   const [openBlock, setOpenBlock] = useState(null)
