@@ -1221,38 +1221,19 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
                           getCrossTarget={getGlobalCrossTarget}
                           onMoveOut={handleMoveOut}
                           renderTask={(task, idx, rp) => (
-                            <React.Fragment key={task.id}>
-                              <TaskRow task={task} defaultStatus="next"
-                                       translateY={rp.translateY} isDragging={rp.isDragging}
-                                       crossTarget={rp.crossTarget}
-                                       taskRef={rp.taskRef}
-                                       onReorderStart={rp.onReorderStart}
-                                       onReorderMove={rp.onReorderMove}
-                                       onReorderEnd={rp.onReorderEnd}
-                                       onStatusChange={(s) => {
-                                         setOpenStatuses(o => ({ ...o, [task.id]: s }));
-                                         if (onTaskStatusChange) onTaskStatusChange(task.id, s);
-                                       }}
-                                       onEstChange={onTaskEstChange}
-                                       onDepthChange={onTaskDepthChange} />
-                              {pillar.id === 'open' && onAssignPillar && (
-                                <div className="open-task-pillar-assign">
-                                  <span className="open-task-pillar-assign-label">move to</span>
-                                  <button className="pillar-assign-chip arrow"
-                                          onClick={() => onAssignPillar(task.id, 'arrow')}>
-                                    <span className="pillar-dot arrow"></span>Arrow
-                                  </button>
-                                  <button className="pillar-assign-chip sunny"
-                                          onClick={() => onAssignPillar(task.id, 'sunny')}>
-                                    <span className="pillar-dot sunny"></span>Sunny
-                                  </button>
-                                  <button className="pillar-assign-chip life"
-                                          onClick={() => onAssignPillar(task.id, 'life')}>
-                                    <span className="pillar-dot life"></span>Life
-                                  </button>
-                                </div>
-                              )}
-                            </React.Fragment>
+                            <TaskRow key={task.id} task={task} defaultStatus="next"
+                                     translateY={rp.translateY} isDragging={rp.isDragging}
+                                     crossTarget={rp.crossTarget}
+                                     taskRef={rp.taskRef}
+                                     onReorderStart={rp.onReorderStart}
+                                     onReorderMove={rp.onReorderMove}
+                                     onReorderEnd={rp.onReorderEnd}
+                                     onStatusChange={(s) => {
+                                       setOpenStatuses(o => ({ ...o, [task.id]: s }));
+                                       if (onTaskStatusChange) onTaskStatusChange(task.id, s);
+                                     }}
+                                     onEstChange={onTaskEstChange}
+                                     onDepthChange={onTaskDepthChange} />
                           )} />
                 {!adding ? (
                   <button className="add-task-btn" onClick={() => setAdding(true)}
