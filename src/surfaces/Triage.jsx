@@ -6,7 +6,6 @@
 import React from 'react'
 import { createPortal } from 'react-dom'
 import { IconCheck } from '../icons.jsx'
-import { CAL_EVENTS } from '../data.js'
 import { usePillars } from '../lib/usePillars.js'
 
 const ReactDOM = { createPortal }
@@ -1267,7 +1266,32 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
   );
 }
 
-export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsChange }) {
+// Convert a placed_blocks row (hour decimal, duration minutes) into the
+// {start, end, title, pillar} shape CalEventRow expects.
+function placedToCalEvent(b) {
+  const fmt = (decimal) => {
+    const hh = Math.floor(decimal)
+    const mm = Math.round((decimal - hh) * 60)
+    return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`
+  }
+  return {
+    id: b.id,
+    start: fmt(b.hour),
+    end: fmt(b.hour + b.duration / 60),
+    title: b.title,
+    pillar: b.pillar ?? 'open',
+  }
+}
+
+export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainingMinsChange }) {
+  const calEvents = React.useMemo(
+    () =>
+      (placed ?? [])
+        .filter((b) => b.type === 'meeting')
+        .sort((a, b) => a.hour - b.hour)
+        .map(placedToCalEvent),
+    [placed]
+  )
   const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus, updateTask: writeTaskPatch, getTaskSnapshot } = usePillars()
 
   const initial = React.useMemo(() => {
@@ -1592,7 +1616,12 @@ export function Triage({ initialProgress = 'mid', onPushNext, onRemainingMinsCha
 
         <div className="cal-summary">
           <div className="cal-summary-label">today's calendar · hold to add prep time</div>
-          {CAL_EVENTS.map(e => (
+          {calEvents.length === 0 && (
+            <div className="cal-summary-empty" style={{ opacity: 0.5, padding: '8px 0', fontSize: 13 }}>
+              no meetings today
+            </div>
+          )}
+          {calEvents.map((e) => (
             <CalEventRow key={e.id} event={e} />
           ))}
         </div>

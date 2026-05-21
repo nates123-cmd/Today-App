@@ -118,10 +118,14 @@ export default function App() {
 
         <div className="pager" ref={pagerRef} onScroll={onPagerScroll}>
           {isFirstOpenToday && (
-            <Welcome onSwipeUp={() => goToPage(pages.indexOf('morning'))} />
+            <Welcome
+              placed={placed}
+              onSwipeUp={() => goToPage(pages.indexOf('morning'))}
+            />
           )}
           <Morning onOpenYesterday={() => setDayOverlay('yesterday')} />
           <Triage
+            placed={placed}
             onPushNext={() => goToPage(pages.indexOf('scheduling'))}
             onRemainingMinsChange={setRemainingMinsByPillar}
           />
