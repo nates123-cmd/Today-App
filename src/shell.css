@@ -9,13 +9,28 @@
 }
 
 @media (max-width: 480px) {
-  html, body { overflow: auto; }
-  .stage { width: 100vw; height: 100svh; }
-  .phone {
-    width: 100vw; height: 100svh;
-    border-radius: 0; border: none;
-    box-shadow: none;
+  html, body {
+    overflow: auto;
+    background: var(--bg-canvas);
+    /* extend canvas into the iOS safe-area insets so top/bottom don't read as black */
+    min-height: 100svh;
   }
+  .stage {
+    width: 100vw;
+    height: 100svh;
+    background: var(--bg-canvas);
+  }
+  .phone {
+    width: 100vw;
+    height: 100svh;
+    border-radius: 0;
+    border: none;
+    box-shadow: none;
+    background: var(--bg-canvas);
+  }
+  /* Don't let the prototype's absolutely-positioned status bar sit underneath the iOS status bar. */
+  .status-bar { padding-top: max(14px, env(safe-area-inset-top)); }
+  .day-spine  { bottom: max(24px, env(safe-area-inset-bottom)); }
 }
 
 /* Surface stubs — placeholder content for un-ported pages. */

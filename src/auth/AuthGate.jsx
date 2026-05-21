@@ -4,14 +4,16 @@ import { supabase } from '../lib/supabase'
 const STATES = {
   loading: 'loading',
   prompt: 'prompt',
-  sent: 'sent',
+  code: 'code',
   ready: 'ready',
 }
 
 export function AuthGate({ children }) {
   const [state, setState] = useState(STATES.loading)
   const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [sending, setSending] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -30,21 +32,40 @@ export function AuthGate({ children }) {
     }
   }, [])
 
-  const sendLink = async (e) => {
+  const sendCode = async (e) => {
     e.preventDefault()
     if (!email || sending) return
     setSending(true)
     setError(null)
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: window.location.origin + window.location.pathname },
+      options: { shouldCreateUser: true },
     })
     setSending(false)
     if (error) {
       setError(error.message)
       return
     }
-    setState(STATES.sent)
+    setCode('')
+    setState(STATES.code)
+  }
+
+  const verifyCode = async (e) => {
+    e.preventDefault()
+    if (code.length !== 8 || verifying) return
+    setVerifying(true)
+    setError(null)
+    const { error } = await supabase.auth.verifyOtp({
+      email,
+      token: code,
+      type: 'email',
+    })
+    setVerifying(false)
+    if (error) {
+      setError(error.message)
+      return
+    }
+    // onAuthStateChange will flip state to ready
   }
 
   if (state === STATES.loading) {
@@ -62,7 +83,7 @@ export function AuthGate({ children }) {
         <h1 className="auth-title">Sign in</h1>
 
         {state === STATES.prompt && (
-          <form onSubmit={sendLink} className="auth-form">
+          <form onSubmit={sendCode} className="auth-form">
             <label className="auth-label" htmlFor="auth-email">
               email
             </label>
@@ -78,22 +99,49 @@ export function AuthGate({ children }) {
               required
             />
             <button className="auth-btn" type="submit" disabled={sending || !email}>
-              {sending ? 'sending…' : 'email me a link'}
+              {sending ? 'sending…' : 'email me a code'}
             </button>
             {error && <div className="auth-error">{error}</div>}
           </form>
         )}
 
-        {state === STATES.sent && (
-          <div className="auth-sent">
-            <p>Check <strong>{email}</strong>.</p>
+        {state === STATES.code && (
+          <form onSubmit={verifyCode} className="auth-form">
             <p className="auth-hint">
-              Tap the sign-in link in the email. You'll be signed in once you return here.
+              We sent an 8-digit code to <strong>{email}</strong>.
             </p>
-            <button className="auth-btn-link" onClick={() => setState(STATES.prompt)}>
+            <label className="auth-label" htmlFor="auth-code">
+              code
+            </label>
+            <input
+              id="auth-code"
+              className="auth-input"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="12345678"
+              maxLength={8}
+              required
+            />
+            <button className="auth-btn" type="submit" disabled={verifying || code.length !== 8}>
+              {verifying ? 'verifying…' : 'sign in'}
+            </button>
+            {error && <div className="auth-error">{error}</div>}
+            <button
+              type="button"
+              className="auth-btn-link"
+              onClick={() => {
+                setError(null)
+                setCode('')
+                setState(STATES.prompt)
+              }}
+            >
               use a different email
             </button>
-          </div>
+          </form>
         )}
       </div>
     </div>
