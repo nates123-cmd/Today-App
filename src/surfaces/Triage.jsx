@@ -1438,8 +1438,14 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
         ...prev,
         [target.id]: [...(prev[target.id] || []), task],
       }));
+      // Persist the assignment when dropping a task onto a pillar header.
+      // Mirrors what the inline "move to Arrow/Sunny/Life" chips do on the
+      // synthetic Open Tasks pillar — writes course_tasks.pillar + Notion.
+      if (target.id === 'arrow' || target.id === 'sunny' || target.id === 'life') {
+        writeTaskPillar(taskId, target.id);
+      }
     }
-  }, []);
+  }, [writeTaskPillar]);
 
   React.useEffect(() => { setPillarState(initial); }, [initial]);
 
