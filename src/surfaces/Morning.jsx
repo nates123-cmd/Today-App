@@ -146,8 +146,15 @@ export function Morning({ onOpenYesterday }) {
           <div className="grounding-grid">
             {GROUNDING.map((g, i) => {
               const I = groundingIcons[g.name];
+              const disabled = !g.action;
               return (
-                <button key={i} className="grounding-tile">
+                <button
+                  key={i}
+                  className="grounding-tile"
+                  disabled={disabled}
+                  onClick={() => { if (g.action) window.location.href = g.action; }}
+                  title={disabled ? 'Not wired up yet' : g.action}
+                >
                   {I && <I className="grounding-tile-icon" />}
                   <div>
                     <div className="grounding-tile-name">{g.name}</div>

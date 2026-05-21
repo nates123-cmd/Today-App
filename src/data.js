@@ -34,11 +34,35 @@ export const TIDE_BACKFILL = [
   { id: 'b2', label: 'Lift session done', tag: 'yesterday', checked: false },
 ]
 
+// `action` is what the tile does when tapped. Either:
+//   - an iOS Shortcuts URL: `shortcuts://run-shortcut?name=<URL-encoded name>`
+//   - any other URL (web, app deeplink)
+//   - null → tile is a no-op placeholder
+//
+// Ink URLs are best-guess until Ink is deployed and the routing is confirmed.
+// Update INK_BASE and the mode query params if they differ.
+const INK_BASE = 'https://nates123-cmd.github.io/Ink/'
+
 export const GROUNDING = [
-  { name: 'Waking Up', src: 'app', kind: 'meditate' },
-  { name: 'Stoic meditate', src: 'ink', kind: 'meditate' },
-  { name: 'Stoic morning', src: 'ink', kind: 'reflect' },
-  { name: 'Memento mori', src: 'ink', kind: 'reflect' },
+  {
+    name: 'Waking Up',
+    src: 'app',
+    kind: 'meditate',
+    action: 'shortcuts://run-shortcut?name=Play%20Daily%20Meditation',
+  },
+  { name: 'Stoic meditate', src: 'ink', kind: 'meditate', action: null },
+  {
+    name: 'Stoic morning',
+    src: 'ink',
+    kind: 'reflect',
+    action: `${INK_BASE}#/stoic?mode=morning-intention`,
+  },
+  {
+    name: 'Memento mori',
+    src: 'ink',
+    kind: 'reflect',
+    action: `${INK_BASE}#/stoic?mode=premeditatio-malorum`,
+  },
 ]
 
 export const CAL_EVENTS = [

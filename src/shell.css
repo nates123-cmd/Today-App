@@ -224,3 +224,11 @@
 .pillar-assign-chip.arrow:hover { border-color: var(--pillar-arrow); }
 .pillar-assign-chip.sunny:hover { border-color: var(--pillar-sunny); }
 .pillar-assign-chip.life:hover  { border-color: var(--pillar-life); }
+
+/* Grounding tiles without a wired action read as faded — visual cue that
+   tapping won't do anything yet. */
+.grounding-tile:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none !important;
+}
