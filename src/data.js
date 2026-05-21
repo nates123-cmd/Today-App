@@ -50,18 +50,23 @@ export const GROUNDING = [
     kind: 'meditate',
     action: 'shortcuts://run-shortcut?name=Play%20Daily%20Meditation',
   },
-  { name: 'Stoic meditate', src: 'ink', kind: 'meditate', action: null },
+  {
+    name: 'Stoic meditate',
+    src: 'ink',
+    kind: 'meditate',
+    action: `${INK_BASE}?screen=stoic&stoic=evening`,
+  },
   {
     name: 'Stoic morning',
     src: 'ink',
     kind: 'reflect',
-    action: `${INK_BASE}#/stoic?mode=morning-intention`,
+    action: `${INK_BASE}?screen=stoic&stoic=morning`,
   },
   {
     name: 'Memento mori',
     src: 'ink',
     kind: 'reflect',
-    action: `${INK_BASE}#/stoic?mode=premeditatio-malorum`,
+    action: `${INK_BASE}?screen=stoic&stoic=premeditatio`,
   },
 ]
 
