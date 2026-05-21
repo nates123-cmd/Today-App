@@ -810,6 +810,7 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
                      onPushMany, onDropMany, onWeeklyMany, removedIds,
                      taskStatuses = {}, onTaskStatusChange,
                      onTaskEstChange, onTaskDepthChange,
+                     onAssignPillar,
                      onReorderStart, isDragging, dragOffsetY, isShifted, shiftAmount, dragHandleRef,
                      // cross-pillar drag
                      registerProject, registerPillar,
@@ -1207,19 +1208,38 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
                           getCrossTarget={getGlobalCrossTarget}
                           onMoveOut={handleMoveOut}
                           renderTask={(task, idx, rp) => (
-                            <TaskRow key={task.id} task={task} defaultStatus="next"
-                                     translateY={rp.translateY} isDragging={rp.isDragging}
-                                     crossTarget={rp.crossTarget}
-                                     taskRef={rp.taskRef}
-                                     onReorderStart={rp.onReorderStart}
-                                     onReorderMove={rp.onReorderMove}
-                                     onReorderEnd={rp.onReorderEnd}
-                                     onStatusChange={(s) => {
-                                       setOpenStatuses(o => ({ ...o, [task.id]: s }));
-                                       if (onTaskStatusChange) onTaskStatusChange(task.id, s);
-                                     }}
-                                     onEstChange={onTaskEstChange}
-                                     onDepthChange={onTaskDepthChange} />
+                            <React.Fragment key={task.id}>
+                              <TaskRow task={task} defaultStatus="next"
+                                       translateY={rp.translateY} isDragging={rp.isDragging}
+                                       crossTarget={rp.crossTarget}
+                                       taskRef={rp.taskRef}
+                                       onReorderStart={rp.onReorderStart}
+                                       onReorderMove={rp.onReorderMove}
+                                       onReorderEnd={rp.onReorderEnd}
+                                       onStatusChange={(s) => {
+                                         setOpenStatuses(o => ({ ...o, [task.id]: s }));
+                                         if (onTaskStatusChange) onTaskStatusChange(task.id, s);
+                                       }}
+                                       onEstChange={onTaskEstChange}
+                                       onDepthChange={onTaskDepthChange} />
+                              {pillar.id === 'open' && onAssignPillar && (
+                                <div className="open-task-pillar-assign">
+                                  <span className="open-task-pillar-assign-label">move to</span>
+                                  <button className="pillar-assign-chip arrow"
+                                          onClick={() => onAssignPillar(task.id, 'arrow')}>
+                                    <span className="pillar-dot arrow"></span>Arrow
+                                  </button>
+                                  <button className="pillar-assign-chip sunny"
+                                          onClick={() => onAssignPillar(task.id, 'sunny')}>
+                                    <span className="pillar-dot sunny"></span>Sunny
+                                  </button>
+                                  <button className="pillar-assign-chip life"
+                                          onClick={() => onAssignPillar(task.id, 'life')}>
+                                    <span className="pillar-dot life"></span>Life
+                                  </button>
+                                </div>
+                              )}
+                            </React.Fragment>
                           )} />
                 {!adding ? (
                   <button className="add-task-btn" onClick={() => setAdding(true)}
@@ -1292,7 +1312,7 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
         .map(placedToCalEvent),
     [placed]
   )
-  const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus, updateTask: writeTaskPatch, getTaskSnapshot } = usePillars()
+  const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus, updateTask: writeTaskPatch, updateTaskPillar: writeTaskPillar, getTaskSnapshot } = usePillars()
 
   const initial = React.useMemo(() => {
     if (initialProgress === 'empty')
@@ -1663,6 +1683,7 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
                        onTaskStatusChange={updateTaskStatus}
                        onTaskEstChange={updateTaskEst}
                        onTaskDepthChange={updateTaskDepth}
+                       onAssignPillar={writeTaskPillar}
                        onReorderStart={startReorder}
                        isDragging={isDragging}
                        dragOffsetY={isDragging ? reorder.dy : 0}

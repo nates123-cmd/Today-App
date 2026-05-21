@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
-import { writebackTaskStatus, writebackTaskDoDate } from './notionWriteback'
+import {
+  writebackTaskStatus,
+  writebackTaskDoDate,
+  writebackTaskPillar,
+} from './notionWriteback'
 
 // Today's four pillar buckets. The first three map to Course's pillar tag
 // strings (capitalized in the DB); the fourth ('open') is synthetic — it's
@@ -33,17 +37,29 @@ function shapeTask(t) {
     status: t.status,
     doDate: t.do_date,
     projectId: t.project_id,
+    pillar: t.pillar ?? null,
     notionUrl: t.notion_url,
   }
 }
 
+// Map a Course pillar string ("Arrow"/"Sunny"/"Life") to Today's pillar id.
+function pillarTagToId(tag) {
+  if (!tag) return null
+  const norm = tag.trim().toLowerCase()
+  if (norm === 'arrow' || norm === 'sunny' || norm === 'life') return norm
+  return null
+}
+
 function buildPillars(projects, tasks) {
   const byProject = new Map()
-  const orphans = []
+  // Orphan tasks split by their task-level pillar tag.
+  // Key: pillar id ('arrow'|'sunny'|'life') or '__unassigned__'.
+  const orphansByPillar = { arrow: [], sunny: [], life: [], __unassigned__: [] }
   for (const t of tasks) {
     if (HIDDEN_STATUSES.has(t.status)) continue
     if (!t.project_id) {
-      orphans.push(t)
+      const pillarId = pillarTagToId(t.pillar)
+      orphansByPillar[pillarId ?? '__unassigned__'].push(t)
       continue
     }
     const arr = byProject.get(t.project_id) ?? []
@@ -69,7 +85,7 @@ function buildPillars(projects, tasks) {
         id: def.id,
         name: def.name,
         color: def.color,
-        openTasks: orphans.map(shapeTask),
+        openTasks: orphansByPillar.__unassigned__.map(shapeTask),
         projects: [],
       }
     }
@@ -77,7 +93,9 @@ function buildPillars(projects, tasks) {
       id: def.id,
       name: def.name,
       color: def.color,
-      openTasks: [],
+      // Orphan tasks tagged with this pillar surface as the pillar's openTasks
+      // alongside its projects.
+      openTasks: orphansByPillar[def.id].map(shapeTask),
       projects: projectsByPillar.get(def.courseTag) ?? [],
     }
   })
@@ -107,13 +125,13 @@ export function usePillars() {
       projectIds.length
         ? supabase
             .from('course_tasks')
-            .select('id, project_id, title, status, effort, work_type, day_order, do_date, notion_url')
+            .select('id, project_id, title, status, effort, work_type, day_order, do_date, pillar, notion_url')
             .in('project_id', projectIds)
             .not('status', 'in', '(done,dropped,archived)')
         : Promise.resolve({ data: [], error: null }),
       supabase
         .from('course_tasks')
-        .select('id, project_id, title, status, effort, work_type, day_order, do_date')
+        .select('id, project_id, title, status, effort, work_type, day_order, do_date, pillar, notion_url')
         .is('project_id', null)
         .not('status', 'in', '(done,dropped,archived)'),
     ])
@@ -179,6 +197,23 @@ export function usePillars() {
     }
   }, [])
 
+  // Assign an orphan task to a pillar (Arrow/Sunny/Life) or clear it back to
+  // unassigned. Writes pillar to course_tasks and mirrors to Notion's Area
+  // relation (best-effort — fails silently if Notion isn't configured for it).
+  const updateTaskPillar = useCallback(async (taskId, pillarId) => {
+    const tagByPillarId = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life' }
+    const tag = pillarId ? tagByPillarId[pillarId] ?? null : null
+    const res = await supabase.from('course_tasks').update({ pillar: tag }).eq('id', taskId)
+    if (res.error) {
+      console.error('updateTaskPillar failed', res.error)
+      return
+    }
+    // Refresh so the task moves between pillar buckets immediately.
+    refresh()
+    const notionUrl = notionUrlByTask.current.get(taskId)
+    if (notionUrl) writebackTaskPillar(notionUrl, pillarId)
+  }, [refresh])
+
   // Look up a task's current persistable fields by id (so push/drop/weekly
   // handlers can capture pre-state for undo). Returns null if not found.
   const getTaskSnapshot = useCallback(
@@ -198,5 +233,14 @@ export function usePillars() {
     [pillars]
   )
 
-  return { pillars, loading, error, refresh, updateTaskStatus, updateTask, getTaskSnapshot }
+  return {
+    pillars,
+    loading,
+    error,
+    refresh,
+    updateTaskStatus,
+    updateTask,
+    updateTaskPillar,
+    getTaskSnapshot,
+  }
 }

@@ -48,3 +48,29 @@ export async function writebackTaskDoDate(notionUrl, isoDate) {
     },
   })
 }
+
+// Notion's Tasks DB uses an "Area" relation (not a Pillar select), pointing
+// to records in an Areas database. To mirror pillar -> Area, we need each
+// Area's Notion page ID. Paste them in below once known; until then this
+// writeback is a no-op (and Today's Supabase pillar still updates fine).
+const AREA_PAGE_ID_BY_PILLAR = {
+  arrow: null, // e.g. '1234567890abcdef1234567890abcdef'
+  sunny: null,
+  life: null,
+}
+
+export async function writebackTaskPillar(notionUrl, pillarId) {
+  const pageId = extractNotionPageId(notionUrl)
+  if (!pageId) return
+  if (pillarId && !AREA_PAGE_ID_BY_PILLAR[pillarId]) {
+    // Area page IDs not configured yet — skip Notion mirror silently. Today's
+    // Supabase column still got updated, so Course can read pillar from there.
+    return
+  }
+  const areaId = pillarId ? AREA_PAGE_ID_BY_PILLAR[pillarId] : null
+  await invokeUpdatePage(pageId, {
+    properties: {
+      Area: { relation: areaId ? [{ id: areaId }] : [] },
+    },
+  })
+}

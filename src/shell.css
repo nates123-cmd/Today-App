@@ -179,3 +179,46 @@
   outline: none;
 }
 .highlight-input:focus { border-color: var(--accent-strong); }
+
+/* Open-task pillar assignment chips — only render on the synthetic 'open'
+   pillar so users can move unpillared tasks to Arrow/Sunny/Life inline. */
+.open-task-pillar-assign {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 10px 36px;
+  flex-wrap: wrap;
+}
+.open-task-pillar-assign-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--ink-tertiary);
+  margin-right: 2px;
+}
+.pillar-assign-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--divider-strong);
+  background: transparent;
+  color: var(--ink-secondary);
+  font-family: var(--font-body);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.pillar-assign-chip:hover {
+  color: var(--ink-primary);
+  background: var(--bg-elevated);
+}
+.pillar-assign-chip .pillar-dot {
+  width: 6px;
+  height: 6px;
+}
+.pillar-assign-chip.arrow:hover { border-color: var(--pillar-arrow); }
+.pillar-assign-chip.sunny:hover { border-color: var(--pillar-sunny); }
+.pillar-assign-chip.life:hover  { border-color: var(--pillar-life); }
