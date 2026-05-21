@@ -304,6 +304,16 @@ function useTaskGesture({
     if (holdTimer.current) { clearTimeout(holdTimer.current); holdTimer.current = null; }
   };
 
+  // Capture pointer only when we've decided the gesture is ours (swipe or
+  // reorder). Capturing on pointerdown competes with native vertical
+  // scrolling on iOS — the first ~8px of finger movement gets eaten while
+  // intent resolves, which feels broken.
+  const captureFor = (e) => {
+    if (e && e.target && e.target.setPointerCapture) {
+      try { e.target.setPointerCapture(e.pointerId); } catch {}
+    }
+  };
+
   const onPointerDown = (e) => {
     if (mode !== 'idle' && mode !== 'committed') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -312,14 +322,17 @@ function useTaskGesture({
     intent.current = null;
     tracking.current = true;
     setMode('idle');
-    if (e.target.setPointerCapture) {
-      try { e.target.setPointerCapture(e.pointerId); } catch {}
-    }
     clearHold();
+    // Long-press picks up the task into reorder mode. Stash the event target
+    // so we can capture the pointer when the hold finally fires.
+    const target = e.target;
     holdTimer.current = setTimeout(() => {
       if (intent.current === null && tracking.current) {
         intent.current = 'reorder';
         setMode('reordering');
+        if (target && target.setPointerCapture) {
+          try { target.setPointerCapture(pointerId.current); } catch {}
+        }
         if (navigator.vibrate) navigator.vibrate(8);
         if (onReorderStart) onReorderStart();
       }
@@ -331,16 +344,16 @@ function useTaskGesture({
     const ddx = e.clientX - startPos.current.x;
     const ddy = e.clientY - startPos.current.y;
     if (intent.current === null) {
-      if (Math.abs(ddx) > 8 || Math.abs(ddy) > 8) {
+      // 14px touch-friendly threshold — leaves room for finger tremor during
+      // the long-press hold window.
+      if (Math.abs(ddx) > 14 || Math.abs(ddy) > 14) {
         clearHold();
         if (Math.abs(ddx) > Math.abs(ddy) * 1.1) {
           intent.current = 'h';
           setMode('swiping');
+          captureFor(e);
         } else {
           intent.current = 'v';
-          if (e.target.releasePointerCapture) {
-            try { e.target.releasePointerCapture(e.pointerId); } catch {}
-          }
           tracking.current = false;
         }
       }
