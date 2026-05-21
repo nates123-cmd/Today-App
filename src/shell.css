@@ -30,7 +30,9 @@
   }
   /* Don't let the prototype's absolutely-positioned status bar sit underneath the iOS status bar. */
   .status-bar { padding-top: max(14px, env(safe-area-inset-top)); }
-  .day-spine  { bottom: max(24px, env(safe-area-inset-bottom)); }
+  /* Lowered into the home-indicator zone so the day-spine sits at the very
+     bottom of the screen instead of floating above empty space. */
+  .day-spine  { bottom: 8px; }
 }
 
 /* Surface stubs — placeholder content for un-ported pages. */
