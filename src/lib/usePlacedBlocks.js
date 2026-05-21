@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import { useVisibilityKey } from './useVisibilityKey'
 
 const TABLE = 'placed_blocks'
 
@@ -56,8 +57,9 @@ export function usePlacedBlocks() {
   const [error, setError] = useState(null)
   const lastRef = useRef([])
   const date = todayISO()
+  const visibilityKey = useVisibilityKey()
 
-  // Initial load
+  // Initial load + refresh when the PWA returns to foreground (visibilityKey ticks).
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -81,7 +83,7 @@ export function usePlacedBlocks() {
     return () => {
       cancelled = true
     }
-  }, [date])
+  }, [date, visibilityKey])
 
   // setPlaced wrapper: applies the local update, then diffs vs the previous
   // committed state and dispatches inserts / updates / deletes to Supabase.

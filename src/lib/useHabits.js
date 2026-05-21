@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { useVisibilityKey } from './useVisibilityKey'
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10)
@@ -12,6 +13,7 @@ export function useHabits(date) {
   const [habits, setHabits] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const visibilityKey = useVisibilityKey()
 
   useEffect(() => {
     let cancelled = false
@@ -40,7 +42,7 @@ export function useHabits(date) {
     return () => {
       cancelled = true
     }
-  }, [targetDate])
+  }, [targetDate, visibilityKey])
 
   // Optimistic toggle. Insert habit_log row when checking, delete when
   // unchecking. Reverts local state on failure.

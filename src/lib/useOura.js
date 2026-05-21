@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { useVisibilityKey } from './useVisibilityKey'
 
 function formatSleep(mins, fallbackScore) {
   if (typeof mins === 'number' && mins > 0) {
@@ -37,6 +38,7 @@ export function useOura() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const visibilityKey = useVisibilityKey()
 
   useEffect(() => {
     let cancelled = false
@@ -103,7 +105,7 @@ export function useOura() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [visibilityKey])
 
   return { data, loading, error }
 }

@@ -24,17 +24,16 @@ export default function App() {
     return localStorage.getItem(TODAY_KEY) !== todayISO()
   })
 
-  const [pages] = useState(() =>
-    isFirstOpenToday
-      ? ['welcome', 'morning', 'triage', 'scheduling', 'live']
-      : ['morning', 'triage', 'scheduling', 'live']
-  )
+  // Welcome is always in the pager so it stays reachable via swipe-up. On
+  // first open of the day we land on it; on subsequent opens we resume
+  // where we left off.
+  const [pages] = useState(() => ['welcome', 'morning', 'triage', 'scheduling', 'live'])
 
   const [initialIdx] = useState(() => {
-    if (isFirstOpenToday) return 0
+    if (isFirstOpenToday) return pages.indexOf('welcome')
     const last = typeof localStorage !== 'undefined' ? localStorage.getItem(PAGE_KEY) : null
-    const candidate = pages.indexOf(last ?? 'live')
-    return candidate < 0 ? pages.indexOf('live') : candidate
+    const candidate = pages.indexOf(last ?? 'morning')
+    return candidate < 0 ? pages.indexOf('morning') : candidate
   })
 
   const [activePage, setActivePage] = useState(initialIdx)
@@ -44,7 +43,6 @@ export default function App() {
   const [openBlock, setOpenBlock] = useState(null)
 
   const pagerRef = useRef(null)
-  const phoneRef = useRef(null)
 
   // Persist last-page + mark today as "opened" once the user moves past
   // welcome. Staying on welcome and reloading should still show welcome —
@@ -75,54 +73,26 @@ export default function App() {
     })
   }
 
-  // Horizontal swipe for day spine.
-  useEffect(() => {
-    let startX = 0
-    let startY = 0
-    let tracking = false
-    const el = phoneRef.current
-    if (!el) return
-    const onTouchStart = (e) => {
-      startX = e.touches[0].clientX
-      startY = e.touches[0].clientY
-      tracking = true
-    }
-    const onTouchEnd = (e) => {
-      if (!tracking) return
-      tracking = false
-      const t = e.changedTouches[0]
-      const dx = t.clientX - startX
-      const dy = t.clientY - startY
-      if (Math.abs(dx) > 80 && Math.abs(dx) > Math.abs(dy) * 1.6 && !dayOverlay) {
-        setDayOverlay(dx < 0 ? 'tomorrow' : 'yesterday')
-      }
-    }
-    el.addEventListener('touchstart', onTouchStart)
-    el.addEventListener('touchend', onTouchEnd)
-    return () => {
-      el.removeEventListener('touchstart', onTouchStart)
-      el.removeEventListener('touchend', onTouchEnd)
-    }
-  }, [dayOverlay])
+  // Horizontal swipe to yesterday/tomorrow was firing too often on Triage's
+  // task list (swipe-right/left there sets task status / time). Disabled —
+  // use the yesterday/tomorrow buttons in the day spine instead.
 
   const currentPage = pages[activePage]
   const showDaySpine = currentPage !== 'welcome'
 
   return (
     <div className="stage">
-      <div className="phone" ref={phoneRef}>
+      <div className="phone">
         <div className="status-bar">
           <span>{new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
           <span className="right">●●●</span>
         </div>
 
         <div className="pager" ref={pagerRef} onScroll={onPagerScroll}>
-          {isFirstOpenToday && (
-            <Welcome
-              placed={placed}
-              onSwipeUp={() => goToPage(pages.indexOf('morning'))}
-            />
-          )}
+          <Welcome
+            placed={placed}
+            onSwipeUp={() => goToPage(pages.indexOf('morning'))}
+          />
           <Morning onOpenYesterday={() => setDayOverlay('yesterday')} />
           <Triage
             placed={placed}
