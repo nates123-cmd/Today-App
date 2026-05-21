@@ -83,11 +83,6 @@ export default function App() {
   return (
     <div className="stage">
       <div className="phone">
-        <div className="status-bar">
-          <span>{new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-          <span className="right">●●●</span>
-        </div>
-
         <div className="pager" ref={pagerRef} onScroll={onPagerScroll}>
           <Welcome
             placed={placed}
