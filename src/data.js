@@ -48,7 +48,7 @@ export const GROUNDING = [
     name: 'Waking Up',
     src: 'app',
     kind: 'meditate',
-    action: 'shortcuts://run-shortcut?name=Play%20Daily%20Meditation',
+    action: 'shortcuts://run-shortcut?name=Play%20Daily%20Meditation%20in%20Waking%20Up',
   },
   {
     name: 'Stoic meditate',
