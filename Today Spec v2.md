@@ -67,8 +67,10 @@ pages. Scroll position within a page is preserved across navigations.
 
 ## 3. Welcome screen
 
-Threshold. Calm, ritual, intentional. Shown only on the first open of the
-day.
+Threshold. Calm, ritual, intentional. Always present in the pager so it
+stays reachable via swipe-up; on the first open of the day the app
+lands on Welcome, on subsequent opens it resumes at the last page
+visited but Welcome is one swipe away.
 
 ### Content
 
@@ -166,7 +168,15 @@ with:
   pillars.
 - Body: project list (each project is its own collapsible row), then a
   dedicated `Open tasks` section (pillar-scoped tasks not belonging to any
-  project).
+  project). A task is considered pillar-scoped if either its project's
+  pillar tag matches OR it has a task-level `course_tasks.pillar` override
+  (set via the "move to Arrow/Sunny/Life" chips on the synthetic Open
+  Tasks pillar).
+- **Synthetic Open Tasks pillar (bottom).** Holds orphan tasks with no
+  project AND no task-level pillar tag. Each row shows three inline
+  chips (Arrow / Sunny / Life) — tap one to set `course_tasks.pillar`,
+  mirror to Notion's Area relation, and refresh. The task immediately
+  moves into the picked pillar's openTasks.
 
 **Collapse uses `display:none`, not unmount.** State inside the pillar
 (task statuses, custom estimates, added tasks, ordering) survives
@@ -264,7 +274,7 @@ Bridge between commitment and execution.
 
 The page boots with **only the immovable items** placed on the calendar:
 
-- **Hard-line meetings** from gcal (Shortcut pull) — read-only on this
+- **Hard-line meetings** from ical (Shortcut pull) — read-only on this
   surface.
 - **Auto-placed routines** — routines marked `autoPlaced: true` (e.g.
   some breakfast routines).
@@ -314,7 +324,7 @@ with hard-line meetings show `✕ overlaps meeting` and reject the drop.
 
 ### What's deferred to v2
 
-- Two-way gcal sync. v1 reality: gcal is read-only.
+- Two-way ical sync. v1 reality: ical is read-only.
 
 ---
 
@@ -461,7 +471,7 @@ Preview-leaning. Slides in from the right.
   count, collapsible body). Body shows a sample task from the queue.
   Closing copy: `triage opens tomorrow morning. these are tonight's
   drafts.`
-- **Schedule mode** — `hard-line events` from gcal + `proposed schedule`
+- **Schedule mode** — `hard-line events` from ical + `proposed schedule`
   (draggable tomorrow). Read-only on this surface — drafts only.
 
 ---
@@ -546,8 +556,8 @@ placed_blocks
   title
   pillar_id         nullable
   project_id        nullable
-  source            enum: gcal | tide_routine | today_user
-  source_id         nullable (for meetings: gcal event id)
+  source            enum: ical | tide_routine | today_user
+  source_id         nullable (for meetings: ical event id — currently omitted because the iOS Shortcut's Get Details action doesn't expose Calendar Item Identifier reliably across iOS versions)
 ```
 
 ### Daily journal
@@ -567,7 +577,7 @@ Today reads from but does **not** own:
 - `mantras` (Ink)
 - `tide_habits` + `tide_oura` (Tide)
 - `focus_sessions` (Tick's table — Today writes here on focus completion)
-- gcal events (Shortcut pull, read-only)
+- ical events (Shortcut pull, read-only)
 - iOS Reminders (Shortcut pull, routing TBD)
 
 ---
@@ -580,7 +590,7 @@ Match the suite pattern:
 - Shared Supabase project (the one project hosting everything)
 - Direct Claude API browser calls for in-app generated content (health
   insight, suggestion text, Morning Pulse if it lands here)
-- Shortcuts deeplinks for gcal pull, iOS Reminders pull, focus-timer
+- Shortcuts deeplinks for ical pull, iOS Reminders pull, focus-timer
   shortcut mode, Waking Up launch
 - Mobile-first, ~440px max-width column, centered on desktop
 - Warm-dark palette; tight tone register (see CLAUDE.md)
@@ -680,7 +690,7 @@ Strategic shifts and design commitments. Append-only.
 - **First-up calendar preview lives on welcome screen only.**
 - **No date display on page one.** Welcome establishes the date.
 - **Three-day hard-stop spine.**
-- **Two-way gcal sync deferred to v2.**
+- **Two-way ical sync deferred to v2.**
 - **Tick's standalone shell retires when Pillar Block view ships.**
 
 **Added in v2 (from the prototype):**
