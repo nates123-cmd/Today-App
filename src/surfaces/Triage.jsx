@@ -163,9 +163,8 @@ const PROJECT_STATUSES = [
   { id: 'dropped',  label: 'dropped'      },
 ];
 
-function CalEventRow({ event }) {
+function CalEventRow({ event, hasPrep }) {
   const [menu, setMenu] = React.useState(false);
-  const [prepMins, setPrepMins] = React.useState(null);
   const timer = React.useRef(null);
   const startPos = React.useRef({ x: 0, y: 0 });
 
@@ -182,29 +181,16 @@ function CalEventRow({ event }) {
   const onUp = () => clearTimeout(timer.current);
 
   const pick = (mins) => {
-    setPrepMins(mins);
     setMenu(false);
-    // Compute prep block start (e.g. 10:00 event, 30m prep → 9:30 start)
     const [hh, mm] = event.start.split(':').map(Number);
     const startHour = hh + (mm || 0) / 60 - mins / 60;
-    const eventDecimal = hh + (mm || 0) / 60;
-    const prepStartStr = `${Math.floor(startHour)}:${String(Math.round((startHour - Math.floor(startHour)) * 60)).padStart(2, '0')}`;
     window.dispatchEvent(new CustomEvent('today:prep-added', { detail: {
-      id: `prep-${event.id}`,
       eventId: event.id,
       title: event.title,
-      pillar: event.pillar,
+      // event.pillar defaults to 'open' for meetings without a pillar tag —
+      // don't propagate that to the prep block. Prep is its own thing.
+      pillar: event.pillar && event.pillar !== 'open' ? event.pillar : null,
       hour: startHour, duration: mins,
-      eventStart: event.start, eventDecimal, prepStartStr,
-    }}));
-  };
-
-  const clearPrep = (e) => {
-    e.stopPropagation();
-    setPrepMins(null);
-    window.dispatchEvent(new CustomEvent('today:prep-removed', { detail: {
-      id: `prep-${event.id}`,
-      eventId: event.id,
     }}));
   };
 
@@ -217,25 +203,15 @@ function CalEventRow({ event }) {
         <div className="cal-event-time">{event.start} — {event.end}</div>
         <div className="cal-event-bar" style={{ background: `var(--pillar-${event.pillar})` }}></div>
         <div className="cal-event-title">{event.title}</div>
-        {prepMins && (
-          <button className="cal-event-prep-badge" onClick={clearPrep}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  title="click to remove prep block">
-            +{prepMins}m prep
-            <span className="cal-event-prep-x">×</span>
-          </button>
-        )}
       </div>
       {menu && ReactDOM.createPortal(
         <div className="status-modal-backdrop" onPointerDown={() => setMenu(false)}>
           <div className="status-modal" onPointerDown={(e) => e.stopPropagation()}>
-            <div className="status-modal-label">add prep block</div>
+            <div className="status-modal-label">{hasPrep ? 'change prep block' : 'add prep block'}</div>
             <div className="status-modal-target">{event.title}</div>
             <div className="status-modal-opts">
               {[15, 30, 60].map(m => (
-                <button key={m}
-                        className={`status-modal-btn ${prepMins === m ? 'current' : ''}`}
-                        onClick={() => pick(m)}>
+                <button key={m} className="status-modal-btn" onClick={() => pick(m)}>
                   <span className="status-modal-dot active"></span>
                   {m === 60 ? '1 hour' : `${m} min`} before
                 </button>
@@ -247,6 +223,31 @@ function CalEventRow({ event }) {
         document.body
       )}
     </>
+  );
+}
+
+function fmtHourLabel(decimal) {
+  const hh = Math.floor(decimal);
+  const mm = Math.round((decimal - hh) * 60);
+  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+}
+
+function CalPrepRow({ prep }) {
+  const start = fmtHourLabel(prep.hour);
+  const end = fmtHourLabel(prep.hour + prep.duration / 60);
+  const remove = () => {
+    window.dispatchEvent(new CustomEvent('today:prep-removed', { detail: {
+      eventId: prep.sourceId,
+    }}));
+  };
+  return (
+    <div className="cal-event cal-event-prep" style={{ position: 'relative' }}>
+      <div className="cal-event-time">{start} — {end}</div>
+      <div className="cal-event-bar cal-event-bar-prep"></div>
+      <div className="cal-event-title">Prep · {prep.title.replace(/^Prep · /, '')}</div>
+      <button className="cal-event-prep-remove" onClick={remove}
+              title="remove prep block">×</button>
+    </div>
   );
 }
 
@@ -1002,7 +1003,13 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
     return () => { if (registerPillar) registerPillar(pillar.id, pillar.name, null); };
   }, [pillar.id, pillar.name, registerPillar]);
 
-  const pillarOpenTasks = pillar.openTasks || [];
+  // Open tasks are noise when they're scheduled for a future day — only
+  // show ones with no do_date (always-available) or do_date = today. Tasks
+  // scheduled for later live in Course until their day arrives.
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const pillarOpenTasks = (pillar.openTasks || []).filter(
+    (t) => !t.doDate || t.doDate === todayISO
+  );
   const openExtrasFromOther = globalOpenAdditions?.[pillar.id] || [];
   // A task is "still open" if it's not removed (pushed/dropped via swipe),
   // not reassigned out, and its status isn't done/dropped.
@@ -1083,8 +1090,15 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
             const isCompleted = completedProjects.has(pid);
             if (isCompleted && !showCompletedProjects) return null;
             const liveTasks = project.tasks.filter(t => !removedIds.has(t.id) && !globalReassignedOut.has(t.id));
-            const reassignedTasks = globalProjectAdditions?.[project.id] || [];
-            const allProjectTasks = [...liveTasks, ...reassignedTasks];
+            // Single dedup pass — kills DB-vs-optimistic overlap plus any
+            // self-duplicates from a double-fired drag.
+            const seenProj = new Set();
+            const allProjectTasks = [];
+            for (const t of [...liveTasks, ...(globalProjectAdditions?.[project.id] || [])]) {
+              if (seenProj.has(t.id)) continue;
+              seenProj.add(t.id);
+              allProjectTasks.push(t);
+            }
             if (allProjectTasks.length === 0 && !isCompleted) return null;
 
             // Reorder visual props
@@ -1164,8 +1178,16 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
           {(() => {
             const liveOpenTasks = pillarOpenTasks.filter(t => !removedIds.has(t.id) && !globalReassignedOut.has(t.id));
             const liveExtras    = extraTasks.filter(t => !removedIds.has(t.id) && !globalReassignedOut.has(t.id));
-            const liveFromOther = openExtrasFromOther;
-            const allOpenTasks  = [...liveOpenTasks, ...liveExtras, ...liveFromOther];
+            // Single dedup pass across all three sources. Catches DB-vs-
+            // optimistic overlap AND any self-duplicates from a glitchy drag
+            // that double-fired onCrossReassign before the state hygiene fix.
+            const seen = new Set();
+            const allOpenTasks = [];
+            for (const t of [...liveOpenTasks, ...liveExtras, ...openExtrasFromOther]) {
+              if (seen.has(t.id)) continue;
+              seen.add(t.id);
+              allOpenTasks.push(t);
+            }
             const hasOpen       = allOpenTasks.length > 0;
 
             const isDone = (id) => {
@@ -1179,18 +1201,15 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
             const handleMoveOut = (taskId, target) => {
               const task = allOpenTasks.find(t => t.id === taskId);
               if (!task) return;
-              if (target.kind === 'project' && target.pillarId === pillar.id) {
-                // Same-pillar reassignment — toast it locally
-                setReassignToast({ taskLabel: task.label, label: target.name });
-                setTimeout(() => setReassignToast(null), 2400);
-              } else if (target.kind === 'pillar' && target.id === pillar.id) {
-                // No-op, dropped onto own pillar
-                return;
-              } else {
-                // Cross-pillar — show toast on source
+              const isOwnPillarNoOp = target.kind === 'pillar' && target.id === pillar.id;
+              if (!isOwnPillarNoOp) {
+                // Project move within same pillar OR cross-pillar — both get a toast.
                 setReassignToast({ taskLabel: task.label, label: target.name });
                 setTimeout(() => setReassignToast(null), 2400);
               }
+              // Always notify the parent so the global drop-target highlight clears,
+              // even when the drop is a no-op (e.g. dragging an open task back into
+              // its own pillar's open-tasks zone).
               if (onCrossReassign) onCrossReassign(taskId, task, target);
             };
 
@@ -1306,6 +1325,33 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
         .map(placedToCalEvent),
     [placed]
   )
+  // Existing prep blocks keyed by the meeting they're for (source_id).
+  // Used to (a) tell CalEventRow whether prep already exists and (b) render
+  // the prep as its own row in the calendar list, just before the meeting.
+  const prepBlockByEventId = React.useMemo(() => {
+    const m = new Map()
+    for (const b of placed ?? []) {
+      if (b.type === 'prep' && b.sourceId) m.set(b.sourceId, b)
+    }
+    return m
+  }, [placed])
+
+  // Build the interleaved render list: prep rows positioned just before their
+  // meeting. Time-sorted overall so an unrelated meeting between prep and
+  // its own meeting still appears in the right place.
+  const calRows = React.useMemo(() => {
+    const startDecimal = (s) => {
+      const [hh, mm] = s.split(':').map(Number)
+      return hh + (mm || 0) / 60
+    }
+    const rows = []
+    for (const e of calEvents) {
+      const prep = prepBlockByEventId.get(e.id)
+      if (prep) rows.push({ kind: 'prep', hour: prep.hour, prep })
+      rows.push({ kind: 'meeting', hour: startDecimal(e.start), event: e, hasPrep: !!prep })
+    }
+    return rows.sort((a, b) => a.hour - b.hour)
+  }, [calEvents, prepBlockByEventId])
   const { pillars: PILLARS, loading, error, updateTaskStatus: writeTaskStatus, updateTask: writeTaskPatch, updateTaskPillar: writeTaskPillar, getTaskSnapshot } = usePillars()
 
   const initial = React.useMemo(() => {
@@ -1372,6 +1418,16 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
   const [openAdditions, setOpenAdditions] = React.useState({}); // pillarId -> [task]
   const [globalDropTargetId, setGlobalDropTargetId] = React.useState(null);
 
+  // usePillars only re-fires when the DB refetches (initial load + after a
+  // cross-pillar writeback). At that point the DB is authoritative — keeping
+  // the optimistic openAdditions / reassignedOut state would double-render
+  // the moved task in the target pillar.
+  React.useEffect(() => {
+    setOpenAdditions({});
+    setProjectAdditions({});
+    setReassignedOut(new Set());
+  }, [PILLARS]);
+
   const registerProject = React.useCallback((pid, name, pillarId, el) => {
     if (el) projectRegistry.current[pid] = { name, pillarId, el };
     else delete projectRegistry.current[pid];
@@ -1407,22 +1463,37 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
   }, []);
 
   const onCrossReassign = React.useCallback((taskId, task, target) => {
-    setReassignedOut(s => new Set([...s, taskId]));
+    // Clear the global drop-target highlight no matter what — fixes a bug
+    // where a no-op drop (e.g. own-pillar) left the pillar visually highlighted.
     setGlobalDropTargetId(null);
+    // No-op drops still flow through here just to clear the highlight.
+    if (!task || !target) return;
+    // Dropping a task back into the pillar it already lives in is a no-op
+    // beyond clearing the highlight.
+    const sourcePillarId = task.pillar
+      ?? (target.kind === 'pillar' && target.id === task.pillar ? target.id : null);
+    if (target.kind === 'pillar' && sourcePillarId && target.id === sourcePillarId) return;
+
+    setReassignedOut(s => new Set([...s, taskId]));
     if (target.kind === 'project') {
-      setProjectAdditions(prev => ({
-        ...prev,
-        [target.id]: [...(prev[target.id] || []), task],
-      }));
+      setProjectAdditions(prev => {
+        const existing = prev[target.id] || [];
+        // Idempotent: if a stray double-fire of the gesture lands here twice,
+        // don't stack a second copy. Render-time dedup helps too, but state
+        // hygiene is the real fix.
+        if (existing.some(t => t.id === task.id)) return prev;
+        return { ...prev, [target.id]: [...existing, task] };
+      });
     } else if (target.kind === 'pillar') {
-      setOpenAdditions(prev => ({
-        ...prev,
-        [target.id]: [...(prev[target.id] || []), task],
-      }));
+      setOpenAdditions(prev => {
+        const existing = prev[target.id] || [];
+        if (existing.some(t => t.id === task.id)) return prev;
+        return { ...prev, [target.id]: [...existing, task] };
+      });
       // Persist the assignment when dropping a task onto a pillar header.
       // Mirrors what the inline "move to Arrow/Sunny/Life" chips do on the
       // synthetic Open Tasks pillar — writes course_tasks.pillar + Notion.
-      if (target.id === 'arrow' || target.id === 'sunny' || target.id === 'life') {
+      if (target.id === 'arrow' || target.id === 'sunny' || target.id === 'life' || target.id === 'sidegig') {
         writeTaskPillar(taskId, target.id);
       }
     }
@@ -1641,9 +1712,11 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
               no meetings today
             </div>
           )}
-          {calEvents.map((e) => (
-            <CalEventRow key={e.id} event={e} />
-          ))}
+          {calRows.map((r) =>
+            r.kind === 'prep'
+              ? <CalPrepRow key={r.prep.id} prep={r.prep} />
+              : <CalEventRow key={r.event.id} event={r.event} hasPrep={r.hasPrep} />
+          )}
         </div>
 
         {order.map((id, idx) => {

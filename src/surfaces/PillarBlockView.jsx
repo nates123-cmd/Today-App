@@ -2,7 +2,9 @@
 
 import React from 'react'
 import { IconCheck, IconPause } from '../icons.jsx'
-import { PILLARS } from '../data.js'
+import { usePillars } from '../lib/usePillars.js'
+
+const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
 function FocusTimer({ pillarColor }) {
   const [seconds, setSeconds] = React.useState(25 * 60);
@@ -59,78 +61,111 @@ function FocusTimer({ pillarColor }) {
   );
 }
 
-function PBlockTask({ task, initialStatus = 'active' }) {
-  const [done, setDone] = React.useState(false);
-  const [status, setStatus] = React.useState(initialStatus);
-  const longPress = React.useRef(null);
-  const [menuOpen, setMenuOpen] = React.useState(false);
-
-  const startLong = () => {
-    longPress.current = setTimeout(() => setMenuOpen(true), 480);
-  };
-  const cancelLong = () => clearTimeout(longPress.current);
-
-  const setSt = (s) => { setStatus(s); setMenuOpen(false); };
+function PBlockTask({ task, onToggleDone }) {
+  const done = task.status === 'done';
+  const status = task.status;
 
   return (
-    <div className={`pblock-task ${done ? 'done' : ''}`}
-         onMouseDown={startLong} onMouseUp={cancelLong} onMouseLeave={cancelLong}
-         onTouchStart={startLong} onTouchEnd={cancelLong}>
+    <div className={`pblock-task ${done ? 'done' : ''}`}>
       <div className={`pblock-task-check ${done ? 'done' : ''}`}
-           onClick={(e) => { e.stopPropagation(); setDone(d => !d); }}>
+           onClick={(e) => { e.stopPropagation(); onToggleDone(task.id, done ? 'open' : 'done'); }}>
         {done && <IconCheck w={10} />}
       </div>
       <div className="pblock-task-body">{task.label}</div>
-      {status !== 'active' && (
+      {status && status !== 'open' && status !== 'done' && (
         <div className={`pblock-task-status ${status}`}>{status}</div>
       )}
-      <div className="pblock-task-status">{task.est}</div>
-      {menuOpen && (
-        <div className="decision-menu" style={{ top: 'auto', right: 6 }}
-             onMouseLeave={() => setMenuOpen(false)}>
-          <button onClick={() => setSt('active')}>active</button>
-          <button onClick={() => setSt('waiting')}>waiting</button>
-          <button onClick={() => setSt('blocked')}>blocked</button>
-        </div>
-      )}
+      {task.est && <div className="pblock-task-status">{task.est}</div>}
     </div>
   );
 }
 
-export function PillarBlockView({ block, onClose }) {
-  const pillar = PILLARS.find(p => p.id === block?.pillar);
+function nextUpcoming(placed, nowDecimal) {
+  if (!placed) return null;
+  return placed
+    .filter(b => b.hour > nowDecimal)
+    .sort((a, b) => a.hour - b.hour)[0] ?? null;
+}
 
-  if (!block || !pillar) return null;
+export function PillarBlockView({ block, placed, onClose }) {
+  const { pillars, updateTaskStatus } = usePillars();
+
+  if (!block) return null;
+
+  const pillar = pillars.find(p => p.id === block.pillar);
+  const pillarName = pillar?.name ?? PILLAR_NAMES[block.pillar] ?? 'Block';
+  const colorClass = block.pillar || block.type || 'open';
+
+  // If the block is tied to a specific Course project, show just that one.
+  // Otherwise show every project under this pillar.
+  const projects = pillar
+    ? (block.projectId
+        ? pillar.projects.filter(p => p.id === block.projectId)
+        : pillar.projects)
+    : [];
+  // Orphan tasks tagged with this pillar (project_id null in course_tasks).
+  // Hidden when the block is scoped to a specific project — those open tasks
+  // aren't part of that project's work.
+  const openTasks = pillar && !block.projectId ? (pillar.openTasks ?? []) : [];
+
+  const now = new Date();
+  const nowDecimal = now.getHours() + now.getMinutes() / 60;
+  const next = nextUpcoming(placed, nowDecimal);
+  let nudge = null;
+  if (next) {
+    const mins = Math.max(1, Math.round((next.hour - nowDecimal) * 60));
+    nudge = `next ${next.type === 'meeting' ? 'event' : 'block'} in ${mins} min · ${next.title}`;
+  }
 
   return (
-    <div className={`pblock-overlay ${block ? 'visible' : ''}`}>
+    <div className="pblock-overlay visible">
       <div className="pblock-top">
         <div>
           <div className="pblock-title">
-            <span className={`pillar-dot ${pillar.color}`}></span>
-            {pillar.name}
+            <span className={`pillar-dot ${colorClass}`}></span>
+            {pillarName}
           </div>
           <div className="pblock-sub" style={{ marginTop: 6 }}>{block.title}</div>
-          <div className="pblock-next-nudge">next event in 15 mins · Drane sync</div>
+          {nudge && <div className="pblock-next-nudge">{nudge}</div>}
         </div>
         <button className="pblock-close" onClick={onClose}>close ↓</button>
       </div>
 
       <div className="pblock-body">
-        {pillar.projects.slice(0, 2).map(project => (
+        {projects.length === 0 && openTasks.length === 0 && (
+          <div className="pblock-project">
+            <div className="pblock-project-meta">
+              {pillar ? 'no active projects or open tasks in this pillar' : 'loading…'}
+            </div>
+          </div>
+        )}
+        {projects.map(project => (
           <div key={project.id} className="pblock-project">
             <div className="pblock-project-name">{project.name}</div>
             <div className="pblock-project-meta">{project.meta}</div>
-            {project.tasks.map((t, i) => (
-              <PBlockTask key={t.id} task={t}
-                          initialStatus={i === 1 ? 'waiting' : 'active'} />
+            {project.tasks.length === 0 && (
+              <div className="pblock-project-meta" style={{ opacity: 0.6 }}>
+                no open tasks
+              </div>
+            )}
+            {project.tasks.map(t => (
+              <PBlockTask key={t.id} task={t} onToggleDone={updateTaskStatus} />
             ))}
           </div>
         ))}
+        {openTasks.length > 0 && (
+          <div className="pblock-project">
+            <div className="pblock-project-name">Open tasks</div>
+            <div className="pblock-project-meta">unassigned to a project</div>
+            {openTasks.map(t => (
+              <PBlockTask key={t.id} task={t} onToggleDone={updateTaskStatus} />
+            ))}
+          </div>
+        )}
         <div style={{ height: 220 }} />
       </div>
 
-      <FocusTimer pillarColor={pillar.color} />
+      <FocusTimer pillarColor={colorClass} />
     </div>
   );
 }

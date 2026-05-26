@@ -23,15 +23,17 @@
   --accent-strong: #d9a468;
 
   /* Pillar colors */
-  --pillar-arrow: #c47c5a;
-  --pillar-sunny: #8ba66b;
-  --pillar-life:  #a89968;
-  --pillar-open:  #6e6a60;
+  --pillar-arrow:   #c47c5a;
+  --pillar-sunny:   #8ba66b;
+  --pillar-life:    #a89968;
+  --pillar-sidegig: #6b88a8;
+  --pillar-open:    #6e6a60;
 
-  --pillar-arrow-soft: #c47c5a1f;
-  --pillar-sunny-soft: #8ba66b1f;
-  --pillar-life-soft:  #a899681f;
-  --pillar-open-soft:  #6e6a601f;
+  --pillar-arrow-soft:   #c47c5a1f;
+  --pillar-sunny-soft:   #8ba66b1f;
+  --pillar-life-soft:    #a899681f;
+  --pillar-sidegig-soft: #6b88a81f;
+  --pillar-open-soft:    #6e6a601f;
 
   /* Stage / phone shell */
   --stage-bg: #0d0f0d;
@@ -68,15 +70,17 @@
   --accent-faint: #a8632a10;
   --accent-strong: #8c4f1e;
 
-  --pillar-arrow: #a05a3a;
-  --pillar-sunny: #5d7d3f;
-  --pillar-life:  #8a7438;
-  --pillar-open:  #8a8676;
+  --pillar-arrow:   #a05a3a;
+  --pillar-sunny:   #5d7d3f;
+  --pillar-life:    #8a7438;
+  --pillar-sidegig: #4a6580;
+  --pillar-open:    #8a8676;
 
-  --pillar-arrow-soft: #a05a3a1a;
-  --pillar-sunny-soft: #5d7d3f1a;
-  --pillar-life-soft:  #8a74381a;
-  --pillar-open-soft:  #8a86761a;
+  --pillar-arrow-soft:   #a05a3a1a;
+  --pillar-sunny-soft:   #5d7d3f1a;
+  --pillar-life-soft:    #8a74381a;
+  --pillar-sidegig-soft: #4a65801a;
+  --pillar-open-soft:    #8a86761a;
 
   --stage-bg: #d6cfba;
   --phone-shadow: 0 30px 80px -20px rgba(60,50,30,0.25);
@@ -101,6 +105,11 @@ html, body {
   transition: background 0.4s ease, color 0.4s ease;
   overflow: hidden;
   height: 100vh;
+  /* Block double-tap zoom on iOS Safari (viewport meta blocks pinch zoom).
+     Per-element touch-action overrides (e.g. pan-y on swipe rows) still win. */
+  touch-action: manipulation;
+  -ms-content-zooming: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 button { font-family: inherit; cursor: pointer; }
@@ -211,10 +220,11 @@ button { font-family: inherit; cursor: pointer; }
   width: 8px; height: 8px; border-radius: 50%;
   flex-shrink: 0;
 }
-.pillar-dot.arrow { background: var(--pillar-arrow); }
-.pillar-dot.sunny { background: var(--pillar-sunny); }
-.pillar-dot.life  { background: var(--pillar-life); }
-.pillar-dot.open  { background: var(--pillar-open); }
+.pillar-dot.arrow   { background: var(--pillar-arrow); }
+.pillar-dot.sunny   { background: var(--pillar-sunny); }
+.pillar-dot.life    { background: var(--pillar-life); }
+.pillar-dot.sidegig { background: var(--pillar-sidegig); }
+.pillar-dot.open    { background: var(--pillar-open); }
 
 .regen-btn {
   width: 22px; height: 22px; border-radius: 50%;

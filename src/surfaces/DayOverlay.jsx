@@ -8,7 +8,7 @@ import { YESTERDAY, TOMORROW, WEEK } from '../data.js'
 import { useDailyHighlight } from '../lib/useDailyHighlight.js'
 import { useHabits } from '../lib/useHabits.js'
 
-const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', open: 'Open Tasks' }
+const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
 // "20W" = day-of-month + first letter of weekday (matches the prototype's
 // empty-state datestamp design).

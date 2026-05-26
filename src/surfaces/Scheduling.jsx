@@ -53,21 +53,50 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
   const dragStartRef = React.useRef(null);
   const calRef = React.useRef(null);
 
-  // Listen for prep-block additions from Triage's calendar long-press
+  // Wall-clock time for the "now" indicator on the grid. Ticks every minute
+  // and on visibility return so the bar stays accurate without remounting.
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const tick = () => setNow(new Date());
+    const id = setInterval(tick, 60 * 1000);
+    const onVis = () => document.visibilityState === 'visible' && tick();
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, []);
+  const nowDecimal = now.getHours() + now.getMinutes() / 60;
+  const nowVisible = nowDecimal >= FIRST_HOUR && nowDecimal <= LAST_HOUR + 1;
+  const nowTop = (nowDecimal - FIRST_HOUR) * HOUR_PX;
+
+  // Listen for prep-block additions from Triage's calendar long-press.
+  // placed_blocks.id must be a UUID (DB constraint), so generate one here
+  // and identify the prep block by (source='prep', sourceId=eventId) for
+  // dedup / removal.
   React.useEffect(() => {
     const onPrepAdded = (e) => {
       const d = e.detail;
       setPlaced((prev) => {
-        const filtered = prev.filter((b) => b.id !== d.id);
+        const filtered = prev.filter(
+          (b) => !(b.type === 'prep' && b.sourceId === d.eventId)
+        );
         return [...filtered, {
-          id: d.id, type: 'prep', hour: d.hour, duration: d.duration,
+          id: crypto.randomUUID(),
+          type: 'prep',
+          hour: d.hour,
+          duration: d.duration,
           title: `Prep · ${d.title}`,
-          pillar: d.pillar || null
+          pillar: d.pillar || null,
+          source: 'prep',
+          sourceId: d.eventId,
         }];
       });
     };
     const onPrepRemoved = (e) => {
-      setPlaced((prev) => prev.filter((b) => b.id !== e.detail.id));
+      setPlaced((prev) => prev.filter(
+        (b) => !(b.type === 'prep' && b.sourceId === e.detail.eventId)
+      ));
     };
     window.addEventListener('today:prep-added', onPrepAdded);
     window.addEventListener('today:prep-removed', onPrepRemoved);
@@ -82,9 +111,10 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
   // actual remaining work.
   const pillarBlocks = React.useMemo(() => {
     const defaults = [
-      { id: 'arrow', projects: 3, deep: 2, admin: 3, totalMins: 180, name: 'Arrow' },
-      { id: 'sunny', projects: 3, deep: 1, admin: 0, totalMins: 60,  name: 'Sunny' },
-      { id: 'life',  projects: 2, deep: 0, admin: 1, totalMins: 30,  name: 'Life'  },
+      { id: 'arrow',   projects: 3, deep: 2, admin: 3, totalMins: 180, name: 'Arrow' },
+      { id: 'sunny',   projects: 3, deep: 1, admin: 0, totalMins: 60,  name: 'Sunny' },
+      { id: 'sidegig', projects: 0, deep: 0, admin: 0, totalMins: 0,   name: 'Side gig' },
+      { id: 'life',    projects: 2, deep: 0, admin: 1, totalMins: 30,  name: 'Life'  },
     ];
     return defaults.map(d => {
       const live = remainingMinsByPillar?.[d.id];
@@ -120,7 +150,12 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
     placed.filter((b) => b.pillar).forEach((b) => {counts[b.pillar] = (counts[b.pillar] || 0) + 1;});
     return counts;
   }, [placed]);
-  const placedRoutineSet = React.useMemo(() => new Set(placed.filter((b) => b.type === 'routine').map((b) => b.id)), [placed]);
+  // Routines are tracked in the dock by their slug (e.g. 'r-gym'), but the
+  // placed_blocks row uses a UUID id with the slug stored in source_id.
+  const placedRoutineSet = React.useMemo(
+    () => new Set(placed.filter((b) => b.type === 'routine').map((b) => b.sourceId ?? b.id)),
+    [placed]
+  );
 
   const fmtHour = (h) => {
     const hr = Math.floor(h);
@@ -202,9 +237,20 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
       } else if (drag.source === 'dock-routine') {
         if (!isMeetingHour(clamped, drag.duration)) {
           setPlaced((prev) => [
-          ...prev.filter((b) => b.id !== drag.blockId),
-          { id: drag.blockId, type: 'routine', hour: clamped,
-            duration: drag.duration, title: drag.name, pillar: null }]
+          // Dedup by source_id (the routine slug like 'r-gym'), since the
+          // primary id must be a UUID per the DB schema. Drag from the dock
+          // again to "move" rather than duplicate.
+          ...prev.filter((b) => !(b.type === 'routine' && b.sourceId === drag.blockId)),
+          {
+            id: crypto.randomUUID(),
+            type: 'routine',
+            hour: clamped,
+            duration: drag.duration,
+            title: drag.name,
+            pillar: null,
+            source: 'tide_routine',
+            sourceId: drag.blockId,
+          }]
           );
         }
       } else if (drag.source === 'placed') {
@@ -302,13 +348,34 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
               </div>
             )}
 
+            {/* Current-time indicator */}
+            {nowVisible && (
+              <div className="now-line" style={{ top: nowTop }}>
+                <span className="now-line-dot"></span>
+                <span className="now-line-bar"></span>
+                <span className="now-line-label">{fmtTime(nowDecimal)}</span>
+              </div>
+            )}
+
             {/* Placed blocks (absolutely positioned) */}
             {placed.map((b) => {
               const top = (b.hour - FIRST_HOUR) * HOUR_PX;
               const height = b.duration / 60 * HOUR_PX;
-              const draggable = b.type !== 'meeting';
+              // Prep is tied to its meeting's start time — moving / resizing
+              // it independently would desync them, so it's not draggable.
+              const draggable = b.type !== 'meeting' && b.type !== 'prep';
               const isThisDragging = drag?.blockId === b.id;
               const isThisResizing = resize?.blockId === b.id;
+              const isPrep = b.type === 'prep';
+              // Meetings come from the iCal shortcut; deleting them here would
+              // just be a stale-until-next-sync delete. Prep deletions are
+              // already handled by the × in Triage's calendar row, but
+              // exposing it here too is consistent.
+              const deletable = b.type !== 'meeting';
+              const deleteBlock = (e) => {
+                e.stopPropagation();
+                setPlaced((prev) => prev.filter((x) => x.id !== b.id));
+              };
               return (
                 <div key={b.id}
                 className={`sched-block-abs ${b.type} ${isThisDragging ? 'dragging' : ''} ${isThisResizing ? 'resizing' : ''}`}
@@ -324,19 +391,34 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
                   };
                   startDrag('placed', payload, e);
                 } : undefined}>
-                  <div className="sched-block-title">{b.title}</div>
-                  <div className="sched-block-meta">
-                    {b.type === 'meeting' ? `meeting · ${fmtTime(b.hour)} – ${fmtTime(b.hour + b.duration / 60)}` :
-                    b.type === 'routine' ? `routine · ${b.duration}m` :
-                    b.type === 'adhoc' ? `ad-hoc · ${b.duration}m` :
-                    b.type === 'prep' ? `prep · ${b.duration}m before` :
-                    `${b.duration}m`}
-                  </div>
+                  {isPrep ? (
+                    <div className="sched-block-prep-line">
+                      <span className="sched-block-prep-tag">PREP</span>
+                      <span className="sched-block-prep-meta">{b.duration}m before {b.title.replace(/^Prep · /, '')}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="sched-block-title">{b.title}</div>
+                      <div className="sched-block-meta">
+                        {b.type === 'meeting' ? `meeting · ${fmtTime(b.hour)} – ${fmtTime(b.hour + b.duration / 60)}` :
+                        b.type === 'routine' ? `routine · ${b.duration}m` :
+                        b.type === 'adhoc' ? `ad-hoc · ${b.duration}m` :
+                        `${b.duration}m`}
+                      </div>
+                    </>
+                  )}
                   {draggable &&
                   <div className="resize-handle"
                   onPointerDown={(e) => startResize(b, e)}
                   title="Drag to resize"></div>
                   }
+                  {deletable && (
+                    <button className="sched-block-delete"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={deleteBlock}
+                            title="delete block"
+                            aria-label="delete block">×</button>
+                  )}
                 </div>);
 
             })}

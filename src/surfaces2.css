@@ -53,6 +53,37 @@
   padding: 0 4px;
 }
 
+/* Current-time indicator drawn across the day grid */
+.now-line {
+  position: absolute; left: 0; right: 4px;
+  height: 0;
+  z-index: 6;
+  pointer-events: none;
+  display: flex; align-items: center;
+}
+.now-line-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent);
+  margin-left: 44px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px rgba(212, 119, 70, 0.18);
+}
+.now-line-bar {
+  flex: 1;
+  height: 1.5px;
+  background: var(--accent);
+  margin-left: -1px;
+}
+.now-line-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  background: var(--bg-surface);
+  padding: 1px 5px; border-radius: 3px;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
 /* Absolutely-positioned scheduled blocks */
 .sched-block-abs {
   position: absolute;
@@ -68,17 +99,70 @@
   transition: opacity 0.15s ease;
 }
 .sched-block-abs.meeting  { background: var(--bg-elevated);       border-left-color: var(--ink-secondary); }
-.sched-block-abs.arrow    { background: var(--pillar-arrow-soft); border-left-color: var(--pillar-arrow); }
-.sched-block-abs.sunny    { background: var(--pillar-sunny-soft); border-left-color: var(--pillar-sunny); }
-.sched-block-abs.life     { background: var(--pillar-life-soft);  border-left-color: var(--pillar-life); }
+.sched-block-abs.arrow    { background: var(--pillar-arrow-soft);   border-left-color: var(--pillar-arrow); }
+.sched-block-abs.sunny    { background: var(--pillar-sunny-soft);   border-left-color: var(--pillar-sunny); }
+.sched-block-abs.life     { background: var(--pillar-life-soft);    border-left-color: var(--pillar-life); }
+.sched-block-abs.sidegig  { background: var(--pillar-sidegig-soft); border-left-color: var(--pillar-sidegig); }
 .sched-block-abs.routine  { background: var(--bg-deep);           border-left-color: var(--ink-tertiary); }
 .sched-block-abs.adhoc    { background: var(--accent-faint);      border-left-color: var(--accent); }
-.sched-block-abs.prep     {
-  background: var(--accent-faint);
-  border-left-color: var(--accent);
-  border-style: dashed solid solid solid;
-  border-width: 1px 1px 1px 3px;
-  border-color: var(--accent);
+.sched-block-abs.prep {
+  background: transparent;
+  border: 1px dashed var(--accent);
+  border-left: 3px solid var(--accent);
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+}
+.sched-block-prep-line {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  font-size: 10px;
+  line-height: 1.1;
+  overflow: hidden;
+}
+.sched-block-prep-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.sched-block-prep-meta {
+  color: var(--ink-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Delete affordance — top-right corner of each user-placed block */
+.sched-block-delete {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 20px; height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--ink-tertiary);
+  font-size: 16px; line-height: 1;
+  cursor: pointer;
+  border-radius: 4px;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease;
+  padding: 0;
+  z-index: 2;
+}
+.sched-block-delete:hover {
+  opacity: 1;
+  color: var(--accent);
+  background: rgba(0, 0, 0, 0.18);
+}
+.sched-block-abs.prep .sched-block-delete {
+  /* Prep is short and tight — keep the delete proportional. */
+  width: 16px; height: 16px;
+  font-size: 13px;
+  top: 1px; right: 1px;
 }
 
 /* Drop preview while dragging — shows snap target */
@@ -263,9 +347,10 @@
   display: flex; align-items: center; gap: 10px;
   position: relative;
 }
-.dock-block.arrow { border-left-color: var(--pillar-arrow); background: var(--pillar-arrow-soft); }
-.dock-block.sunny { border-left-color: var(--pillar-sunny); background: var(--pillar-sunny-soft); }
-.dock-block.life  { border-left-color: var(--pillar-life);  background: var(--pillar-life-soft); }
+.dock-block.arrow   { border-left-color: var(--pillar-arrow);   background: var(--pillar-arrow-soft); }
+.dock-block.sunny   { border-left-color: var(--pillar-sunny);   background: var(--pillar-sunny-soft); }
+.dock-block.life    { border-left-color: var(--pillar-life);    background: var(--pillar-life-soft); }
+.dock-block.sidegig { border-left-color: var(--pillar-sidegig); background: var(--pillar-sidegig-soft); }
 .dock-block:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
 .dock-block.dragging {
   opacity: 0.8;

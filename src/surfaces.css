@@ -307,24 +307,33 @@
 .cal-event-bar { width: 3px; align-self: stretch; border-radius: 2px; min-height: 18px; }
 .cal-event-title { font-size: 14px; color: var(--ink-primary); font-weight: 400; }
 
-.cal-event-prep-badge {
-  position: absolute; right: 0; top: 50%;
-  transform: translateY(-50%);
-  font-family: var(--font-mono); font-size: 10px;
-  letter-spacing: 0.08em; text-transform: uppercase;
+.cal-event-prep { opacity: 0.85; }
+.cal-event-prep .cal-event-title {
+  color: var(--accent);
+  font-style: italic;
+  font-size: 13px;
+}
+.cal-event-prep .cal-event-time {
+  color: var(--accent);
+  opacity: 0.8;
+}
+.cal-event-bar-prep {
+  background: var(--accent);
+  border-left: 1px dashed var(--accent);
+  background: transparent;
+}
+.cal-event-prep-remove {
+  margin-left: auto;
+  background: transparent; border: none;
+  color: var(--ink-tertiary);
+  font-size: 18px; line-height: 1;
+  padding: 4px 8px; cursor: pointer;
+  border-radius: 4px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.cal-event-prep-remove:hover {
   color: var(--accent);
   background: var(--accent-faint);
-  border: 1px solid var(--accent);
-  padding: 4px 8px 4px 10px; border-radius: 4px;
-  display: flex; align-items: center; gap: 6px;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.cal-event-prep-badge:hover { background: var(--accent-soft); }
-.cal-event-prep-x {
-  font-size: 12px; font-family: var(--font-body);
-  color: var(--accent);
-  line-height: 1;
 }
 
 /* Pillar boxes */

@@ -132,7 +132,7 @@ export default function App() {
 
         <DayOverlay kind={dayOverlay} onClose={() => setDayOverlay(null)} />
 
-        {openBlock && <PillarBlockView block={openBlock} onClose={() => setOpenBlock(null)} />}
+        {openBlock && <PillarBlockView block={openBlock} placed={placed} onClose={() => setOpenBlock(null)} />}
       </div>
     </div>
   )

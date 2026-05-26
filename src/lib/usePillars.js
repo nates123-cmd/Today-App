@@ -11,10 +11,11 @@ import {
 // Course tasks whose project_id is null (the prototype called this "Open
 // Tasks"). Order is fixed per spec §5: Arrow → Sunny → Life → Open.
 const PILLAR_DEFS = [
-  { id: 'arrow', name: 'Arrow', color: 'arrow', courseTag: 'Arrow' },
-  { id: 'sunny', name: 'Sunny', color: 'sunny', courseTag: 'Sunny' },
-  { id: 'life', name: 'Life', color: 'life', courseTag: 'Life' },
-  { id: 'open', name: 'Open Tasks', color: 'open', courseTag: null },
+  { id: 'arrow',   name: 'Arrow',     color: 'arrow',   courseTag: 'Arrow' },
+  { id: 'sunny',   name: 'Sunny',     color: 'sunny',   courseTag: 'Sunny' },
+  { id: 'sidegig', name: 'Side gig',  color: 'sidegig', courseTag: 'Side gig' },
+  { id: 'life',    name: 'Life',      color: 'life',    courseTag: 'Life' },
+  { id: 'open',    name: 'Open Tasks', color: 'open',   courseTag: null },
 ]
 
 // Course task statuses that are NOT in Today's triage backlog. 'triage' is
@@ -47,14 +48,17 @@ function pillarTagToId(tag) {
   if (!tag) return null
   const norm = tag.trim().toLowerCase()
   if (norm === 'arrow' || norm === 'sunny' || norm === 'life') return norm
+  // Course stores this as 'Side gig' (with space); collapse to a single id
+  // we can use safely in CSS classes and object keys.
+  if (norm === 'side gig' || norm === 'sidegig' || norm === 'side-gig') return 'sidegig'
   return null
 }
 
 function buildPillars(projects, tasks) {
   const byProject = new Map()
   // Orphan tasks split by their task-level pillar tag.
-  // Key: pillar id ('arrow'|'sunny'|'life') or '__unassigned__'.
-  const orphansByPillar = { arrow: [], sunny: [], life: [], __unassigned__: [] }
+  // Key: pillar id ('arrow'|'sunny'|'life'|'sidegig') or '__unassigned__'.
+  const orphansByPillar = { arrow: [], sunny: [], life: [], sidegig: [], __unassigned__: [] }
   for (const t of tasks) {
     if (HIDDEN_STATUSES.has(t.status)) continue
     if (!t.project_id) {
@@ -201,7 +205,7 @@ export function usePillars() {
   // unassigned. Writes pillar to course_tasks and mirrors to Notion's Area
   // relation (best-effort — fails silently if Notion isn't configured for it).
   const updateTaskPillar = useCallback(async (taskId, pillarId) => {
-    const tagByPillarId = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life' }
+    const tagByPillarId = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig' }
     const tag = pillarId ? tagByPillarId[pillarId] ?? null : null
     const res = await supabase.from('course_tasks').update({ pillar: tag }).eq('id', taskId)
     if (res.error) {
