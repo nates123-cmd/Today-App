@@ -655,6 +655,16 @@
   color: var(--ink-tertiary); letter-spacing: 0.06em;
   text-transform: uppercase; font-weight: 400;
 }
+.project-name .project-due {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--ink-tertiary); letter-spacing: 0.06em;
+  font-weight: 400;
+}
+.project-outcome {
+  font-size: 11px; color: var(--ink-secondary);
+  font-style: italic; line-height: 1.45;
+  padding: 2px 0 8px;
+}
 
 /* Swipeable task row */
 .swipe-row {

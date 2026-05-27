@@ -10,6 +10,16 @@ import { usePillars } from '../lib/usePillars.js'
 
 const ReactDOM = { createPortal }
 
+function formatProjectDue(iso) {
+  if (!iso) return null
+  const d = new Date(iso + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return null
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('en-US', sameYear
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function useSwipe({ onCommitRight, onCommitLeft, onLongPress,
                      threshPush = 80, threshMenu = 60, holdMs = 500 }) {
   const [dx, setDx] = React.useState(0);
@@ -774,6 +784,9 @@ function ProjectRow({ project, liveTasks, onPushMany, onDropMany, onWeeklyMany,
              style={{ ...sw.bind.style, cursor: 'pointer' }}>
           <span>{project.name}</span>
           <span className="project-meta">· {project.meta} · {orderedTasks.length}</span>
+          {formatProjectDue(project.dueDate) && (
+            <span className="project-due">{formatProjectDue(project.dueDate)}</span>
+          )}
           <StatusPill status={pStatus} />
           <button className="project-grip"
                   onPointerDown={(e) => {
@@ -784,6 +797,9 @@ function ProjectRow({ project, liveTasks, onPushMany, onDropMany, onWeeklyMany,
                   title="drag to reorder">⋮⋮</button>
         </div>
         <div className="project-body" style={{ display: isCollapsed ? 'none' : 'block' }}>
+            {project.outcome && (
+              <div className="project-outcome">{project.outcome}</div>
+            )}
             <TaskList tasks={orderedTasks} onReorder={reorderTasks}
                       renderTask={(task, idx, rp) => (
                         <TaskRow key={task.id} task={task}

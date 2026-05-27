@@ -6,6 +6,16 @@ import { usePillars } from '../lib/usePillars.js'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
+function formatProjectDue(iso) {
+  if (!iso) return null
+  const d = new Date(iso + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return null
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString('en-US', sameYear
+    ? { month: 'short', day: 'numeric' }
+    : { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 function FocusTimer({ pillarColor }) {
   const [seconds, setSeconds] = React.useState(25 * 60);
   const [running, setRunning] = React.useState(false);
@@ -141,8 +151,16 @@ export function PillarBlockView({ block, placed, onClose }) {
         )}
         {projects.map(project => (
           <div key={project.id} className="pblock-project">
-            <div className="pblock-project-name">{project.name}</div>
+            <div className="pblock-project-name">
+              <span>{project.name}</span>
+              {formatProjectDue(project.dueDate) && (
+                <span className="pblock-project-due">{formatProjectDue(project.dueDate)}</span>
+              )}
+            </div>
             <div className="pblock-project-meta">{project.meta}</div>
+            {project.outcome && (
+              <div className="pblock-project-outcome">{project.outcome}</div>
+            )}
             {project.tasks.length === 0 && (
               <div className="pblock-project-meta" style={{ opacity: 0.6 }}>
                 no open tasks

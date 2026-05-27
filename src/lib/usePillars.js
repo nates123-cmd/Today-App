@@ -79,6 +79,8 @@ function buildPillars(projects, tasks) {
       id: p.id,
       name: p.name,
       meta: projectMeta(p),
+      dueDate: p.due_date ?? null,
+      outcome: p.outcome ?? null,
       tasks: (byProject.get(p.id) ?? []).map(shapeTask),
     })
   }
@@ -115,7 +117,7 @@ export function usePillars() {
     setError(null)
     const projectsRes = await supabase
       .from('course_projects')
-      .select('id, name, status, pillar, work_area, sort_order, last_activity_at')
+      .select('id, name, status, pillar, work_area, sort_order, last_activity_at, due_date, outcome')
       .eq('status', 'active')
       .order('sort_order', { ascending: true, nullsFirst: false })
       .order('last_activity_at', { ascending: false })
