@@ -115,8 +115,10 @@ export function usePillars() {
     setError(null)
     const projectsRes = await supabase
       .from('course_projects')
-      .select('id, name, status, pillar, work_area')
+      .select('id, name, status, pillar, work_area, sort_order, last_activity_at')
       .eq('status', 'active')
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('last_activity_at', { ascending: false })
     if (projectsRes.error) {
       setError(projectsRes.error.message)
       setLoading(false)
