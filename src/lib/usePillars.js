@@ -6,16 +6,17 @@ import {
   writebackTaskPillar,
 } from './notionWriteback'
 
-// Today's four pillar buckets. The first three map to Course's pillar tag
-// strings (capitalized in the DB); the fourth ('open') is synthetic — it's
-// Course tasks whose project_id is null (the prototype called this "Open
-// Tasks"). Order is fixed per spec §5: Arrow → Sunny → Life → Open.
+// Today's pillar buckets. The first four map to a Course pillar tag, matched
+// case/spelling-insensitively via pillarTagToId (the DB stores inconsistent
+// variants — 'arrow' vs 'Arrow', 'side' vs 'Side gig'). The fifth ('open') is
+// synthetic — Course tasks whose project_id is null (the prototype called this
+// "Open Tasks").
 const PILLAR_DEFS = [
-  { id: 'arrow',   name: 'Arrow',     color: 'arrow',   courseTag: 'Arrow' },
-  { id: 'sunny',   name: 'Sunny',     color: 'sunny',   courseTag: 'Sunny' },
-  { id: 'sidegig', name: 'Side gig',  color: 'sidegig', courseTag: 'Side gig' },
-  { id: 'life',    name: 'Life',      color: 'life',    courseTag: 'Life' },
-  { id: 'open',    name: 'Open Tasks', color: 'open',   courseTag: null },
+  { id: 'arrow',   name: 'Arrow',      color: 'arrow' },
+  { id: 'sunny',   name: 'Sunny',      color: 'sunny' },
+  { id: 'sidegig', name: 'Side gig',   color: 'sidegig' },
+  { id: 'life',    name: 'Life',       color: 'life' },
+  { id: 'open',    name: 'Open Tasks', color: 'open' },
 ]
 
 // Course task statuses that are NOT in Today's triage backlog. 'triage' is
@@ -43,14 +44,15 @@ function shapeTask(t) {
   }
 }
 
-// Map a Course pillar string ("Arrow"/"Sunny"/"Life") to Today's pillar id.
+// Map a Course pillar string to Today's pillar id. Tolerant of the casing and
+// spelling variants the DB actually contains ('Arrow'/'arrow', and the side-gig
+// pillar as 'side'/'Side gig'/'sidegig'/'side-gig').
 function pillarTagToId(tag) {
   if (!tag) return null
   const norm = tag.trim().toLowerCase()
   if (norm === 'arrow' || norm === 'sunny' || norm === 'life') return norm
-  // Course stores this as 'Side gig' (with space); collapse to a single id
-  // we can use safely in CSS classes and object keys.
-  if (norm === 'side gig' || norm === 'sidegig' || norm === 'side-gig') return 'sidegig'
+  // Collapse every side-gig spelling to a single id safe for CSS classes/keys.
+  if (norm.startsWith('side')) return 'sidegig'
   return null
 }
 
@@ -73,9 +75,14 @@ function buildPillars(projects, tasks) {
 
   const projectsByPillar = new Map()
   for (const p of projects) {
-    const tag = (p.pillar || '').trim() || null
-    if (!projectsByPillar.has(tag)) projectsByPillar.set(tag, [])
-    projectsByPillar.get(tag).push({
+    // Bucket by normalized pillar id (same path as orphan tasks). The DB's
+    // inconsistent casing/spelling means a raw exact-string match silently
+    // drops projects — e.g. 'arrow' projects never landed under the Arrow
+    // pillar, and the side-gig projects (stored as 'side') vanished entirely.
+    const pid = pillarTagToId(p.pillar)
+    if (!pid) continue
+    if (!projectsByPillar.has(pid)) projectsByPillar.set(pid, [])
+    projectsByPillar.get(pid).push({
       id: p.id,
       name: p.name,
       meta: projectMeta(p),
@@ -102,7 +109,7 @@ function buildPillars(projects, tasks) {
       // Orphan tasks tagged with this pillar surface as the pillar's openTasks
       // alongside its projects.
       openTasks: orphansByPillar[def.id].map(shapeTask),
-      projects: projectsByPillar.get(def.courseTag) ?? [],
+      projects: projectsByPillar.get(def.id) ?? [],
     }
   })
 }
