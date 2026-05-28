@@ -1005,6 +1005,29 @@
 .pblock-task-status.waiting { color: var(--pillar-life); background: var(--pillar-life-soft); }
 .pblock-task-status.blocked { color: var(--pillar-arrow); background: var(--pillar-arrow-soft); }
 
+/* Next-action surfacing — urgent marker + per-project disclosure */
+.pblock-task.urgent .pblock-task-body { font-weight: 600; }
+.pblock-task-due {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.04em; font-weight: 600;
+  color: var(--accent-warn, #d4644a);
+  padding: 3px 7px; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-warn, #d4644a) 14%, transparent);
+}
+.pblock-project-expand {
+  margin-top: 8px;
+  display: inline-flex; align-items: center; gap: 6px;
+  cursor: pointer; user-select: none;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--ink-tertiary);
+}
+.pblock-project-expand:active { opacity: 0.6; }
+.pblock-expand-chev {
+  display: inline-block; transition: transform 0.15s ease;
+  font-size: 14px; line-height: 1;
+}
+.pblock-expand-chev.open { transform: rotate(90deg); }
+
 /* Focus timer */
 .focus-timer {
   position: absolute; left: 20px; right: 20px; bottom: 28px;

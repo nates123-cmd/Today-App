@@ -3,6 +3,7 @@
 import React from 'react'
 import { IconCheck, IconPause } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
+import { surfaceActions } from '../lib/surfaceActions.js'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
@@ -71,17 +72,19 @@ function FocusTimer({ pillarColor }) {
   );
 }
 
-function PBlockTask({ task, onToggleDone }) {
+function PBlockTask({ task, onToggleDone, urgent }) {
   const done = task.status === 'done';
   const status = task.status;
+  const due = urgent ? formatProjectDue(task.doDate) : null;
 
   return (
-    <div className={`pblock-task ${done ? 'done' : ''}`}>
+    <div className={`pblock-task ${done ? 'done' : ''} ${urgent ? 'urgent' : ''}`}>
       <div className={`pblock-task-check ${done ? 'done' : ''}`}
            onClick={(e) => { e.stopPropagation(); onToggleDone(task.id, done ? 'open' : 'done'); }}>
         {done && <IconCheck w={10} />}
       </div>
       <div className="pblock-task-body">{task.label}</div>
+      {due && <div className="pblock-task-due">{due}</div>}
       {status && status !== 'open' && status !== 'done' && (
         <div className={`pblock-task-status ${status}`}>{status}</div>
       )}
@@ -99,6 +102,15 @@ function nextUpcoming(placed, nowDecimal) {
 
 export function PillarBlockView({ block, placed, onClose }) {
   const { pillars, updateTaskStatus } = usePillars();
+  // Per-project disclosure: collapsed by default; expand reveals the rest of
+  // the open task list beneath the surfaced action(s).
+  const [expanded, setExpanded] = React.useState(() => new Set());
+  const toggleExpand = (id) => setExpanded((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const today = new Date();
 
   if (!block) return null;
 
@@ -149,28 +161,51 @@ export function PillarBlockView({ block, placed, onClose }) {
             </div>
           </div>
         )}
-        {projects.map(project => (
-          <div key={project.id} className="pblock-project">
-            <div className="pblock-project-name">
-              <span>{project.name}</span>
-              {formatProjectDue(project.dueDate) && (
-                <span className="pblock-project-due">{formatProjectDue(project.dueDate)}</span>
+        {projects.map(project => {
+          const open = project.tasks; // already incomplete, in project order
+          const sa = surfaceActions(open, today);
+          const surfaced = sa.state === 'urgent_double'
+            ? [sa.primary, sa.secondary]
+            : sa.state === 'empty' ? [] : [sa.primary];
+          const urgentId = sa.state.startsWith('urgent') ? sa.primary.id : null;
+          const surfacedIds = new Set(surfaced.map(t => t.id));
+          const remaining = open.filter(t => !surfacedIds.has(t.id));
+          const isExp = expanded.has(project.id);
+          return (
+            <div key={project.id} className="pblock-project">
+              <div className="pblock-project-name">
+                <span>{project.name}</span>
+                {formatProjectDue(project.dueDate) && (
+                  <span className="pblock-project-due">{formatProjectDue(project.dueDate)}</span>
+                )}
+              </div>
+              <div className="pblock-project-meta">{project.meta}</div>
+              {project.outcome && (
+                <div className="pblock-project-outcome">{project.outcome}</div>
+              )}
+              {sa.state === 'empty' ? (
+                <div className="pblock-project-meta" style={{ opacity: 0.6 }}>
+                  no next action
+                </div>
+              ) : (
+                <>
+                  {surfaced.map(t => (
+                    <PBlockTask key={t.id} task={t} urgent={t.id === urgentId} onToggleDone={updateTaskStatus} />
+                  ))}
+                  {isExp && remaining.map(t => (
+                    <PBlockTask key={t.id} task={t} urgent={t.id === urgentId} onToggleDone={updateTaskStatus} />
+                  ))}
+                </>
+              )}
+              {sa.count > 0 && (
+                <div className="pblock-project-expand" onClick={() => toggleExpand(project.id)}>
+                  <span className={`pblock-expand-chev ${isExp ? 'open' : ''}`}>›</span>
+                  <span>{isExp ? 'Show less' : `+${sa.count} more`}</span>
+                </div>
               )}
             </div>
-            <div className="pblock-project-meta">{project.meta}</div>
-            {project.outcome && (
-              <div className="pblock-project-outcome">{project.outcome}</div>
-            )}
-            {project.tasks.length === 0 && (
-              <div className="pblock-project-meta" style={{ opacity: 0.6 }}>
-                no open tasks
-              </div>
-            )}
-            {project.tasks.map(t => (
-              <PBlockTask key={t.id} task={t} onToggleDone={updateTaskStatus} />
-            ))}
-          </div>
-        ))}
+          );
+        })}
         {openTasks.length > 0 && (
           <div className="pblock-project">
             <div className="pblock-project-name">Open tasks</div>

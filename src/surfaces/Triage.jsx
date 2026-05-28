@@ -7,6 +7,7 @@ import React from 'react'
 import { createPortal } from 'react-dom'
 import { IconCheck } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
+import { surfaceActions } from '../lib/surfaceActions.js'
 
 const ReactDOM = { createPortal }
 
@@ -563,7 +564,7 @@ function guessEstimateFromTitle(title) {
   return '15m';
 }
 
-function TaskRow({ task, defaultStatus = null,
+function TaskRow({ task, defaultStatus = null, urgent = false, dueLabel = null,
                    translateY = 0, isDragging = false, crossTarget = null, taskRef,
                    onReorderStart, onReorderMove, onReorderEnd,
                    onStatusChange, onEstChange, onDepthChange }) {
@@ -634,7 +635,7 @@ function TaskRow({ task, defaultStatus = null,
                      }}
                      onClose={() => setTimeOpen(false)} />
 
-      <div className={`task ${done ? 'task-done' : ''} ${dropped ? 'task-dropped' : ''} ${isDragging ? 'task-reorder' : ''} ${depth ? `depth-${depth}` : ''} status-${status || 'none'}`}
+      <div className={`task ${done ? 'task-done' : ''} ${dropped ? 'task-dropped' : ''} ${isDragging ? 'task-reorder' : ''} ${depth ? `depth-${depth}` : ''} ${urgent ? 'task-urgent' : ''} status-${status || 'none'}`}
            style={{ ...g.bind.style, transform: `translateX(${g.dx}px)` }}
            onPointerDown={g.bind.onPointerDown}
            onPointerMove={g.bind.onPointerMove}
@@ -649,6 +650,7 @@ function TaskRow({ task, defaultStatus = null,
         {crossTarget && (
           <span className="task-reassign-badge">→ {crossTarget.name}</span>
         )}
+        {!crossTarget && urgent && dueLabel && <span className="task-due-chip">{dueLabel}</span>}
         {!crossTarget && <StatusPill status={status} />}
         {!crossTarget && depth && <span className={`depth-pill ${depth}`}>{depth}</span>}
         {!crossTarget && showEst && (
@@ -675,6 +677,9 @@ function ProjectRow({ project, liveTasks, onPushMany, onDropMany, onWeeklyMany,
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState('');
   const [extras, setExtras] = React.useState([]);
+  // Collapsed by default: the project body shows only the surfaced next
+  // action(s); the "+N more" toggle reveals the full ordered task list.
+  const [tasksOpen, setTasksOpen] = React.useState(false);
   // Local order of tasks (combines liveTasks + extras)
   const [taskOrder, setTaskOrder] = React.useState(() => liveTasks.map(t => t.id));
   const didMove = React.useRef(false);
@@ -739,6 +744,14 @@ function ProjectRow({ project, liveTasks, onPushMany, onDropMany, onWeeklyMany,
     return `${orderedTasks.length} task${orderedTasks.length === 1 ? '' : 's'}`;
   })();
 
+  // Next-action surfacing: show only the surfaced action(s) until expanded.
+  const sa = surfaceActions(orderedTasks, new Date());
+  const surfaced = sa.state === 'urgent_double'
+    ? [sa.primary, sa.secondary]
+    : sa.state === 'empty' ? [] : [sa.primary];
+  const urgentId = sa.state.startsWith('urgent') ? sa.primary.id : null;
+  const surfaceCount = sa.count;
+
   return (
     <div className={`project-swipe-wrap swipe-row ${sw.state} ${sw.tracking ? 'dragging' : ''} ${isDropTarget ? 'drop-target' : ''} ${isReordering ? 'reordering' : ''}`}
          ref={projectRef}
@@ -800,18 +813,32 @@ function ProjectRow({ project, liveTasks, onPushMany, onDropMany, onWeeklyMany,
             {project.outcome && (
               <div className="project-outcome">{project.outcome}</div>
             )}
-            <TaskList tasks={orderedTasks} onReorder={reorderTasks}
-                      renderTask={(task, idx, rp) => (
-                        <TaskRow key={task.id} task={task}
-                                 translateY={rp.translateY} isDragging={rp.isDragging}
-                                 taskRef={rp.taskRef}
-                                 onReorderStart={rp.onReorderStart}
-                                 onReorderMove={rp.onReorderMove}
-                                 onReorderEnd={rp.onReorderEnd}
-                                 onStatusChange={(s) => onTaskStatusChange && onTaskStatusChange(task.id, s)}
-                                 onEstChange={onTaskEstChange}
-                                 onDepthChange={onTaskDepthChange} />
-                      )} />
+            {(() => {
+              const renderTaskFn = (task, idx, rp) => (
+                <TaskRow key={task.id} task={task}
+                         urgent={task.id === urgentId}
+                         dueLabel={task.id === urgentId ? formatProjectDue(task.doDate) : null}
+                         translateY={rp.translateY} isDragging={rp.isDragging}
+                         taskRef={rp.taskRef}
+                         onReorderStart={rp.onReorderStart}
+                         onReorderMove={rp.onReorderMove}
+                         onReorderEnd={rp.onReorderEnd}
+                         onStatusChange={(s) => onTaskStatusChange && onTaskStatusChange(task.id, s)}
+                         onEstChange={onTaskEstChange}
+                         onDepthChange={onTaskDepthChange} />
+              );
+              // Collapsed: surfaced action(s) only (no reorder). Expanded: full
+              // ordered list with drag-reorder intact.
+              return tasksOpen
+                ? <TaskList tasks={orderedTasks} onReorder={reorderTasks} renderTask={renderTaskFn} />
+                : <TaskList tasks={surfaced} renderTask={renderTaskFn} />;
+            })()}
+            {surfaceCount > 0 && (
+              <button className="project-show-more"
+                      onClick={() => setTasksOpen(o => !o)}>
+                {tasksOpen ? 'show less' : `+${surfaceCount} more`}
+              </button>
+            )}
             {/* Inline subtle "+" to add a task to this project */}
             {!adding ? (
               <button className="project-add-task" onClick={() => setAdding(true)}

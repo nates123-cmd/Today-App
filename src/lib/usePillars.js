@@ -143,6 +143,8 @@ export function usePillars() {
             .select('id, project_id, title, status, effort, work_type, day_order, do_date, pillar, notion_url')
             .in('project_id', projectIds)
             .not('status', 'in', '(done,dropped,archived)')
+            // Stable "project order" for next-action surfacing (matches Course).
+            .order('created_at', { ascending: true })
         : Promise.resolve({ data: [], error: null }),
       supabase
         .from('course_tasks')

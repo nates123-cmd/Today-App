@@ -1020,3 +1020,21 @@
   font-family: var(--font-mono); font-size: 10px;
   color: var(--ink-tertiary); letter-spacing: 0.08em;
 }
+
+/* Next-action surfacing — per-project "show more" + urgent marker */
+.project-show-more {
+  display: inline-flex; align-items: center;
+  background: transparent; border: 0; padding: 4px 2px;
+  margin-top: 2px; cursor: pointer;
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--ink-tertiary);
+}
+.project-show-more:hover { color: var(--accent); }
+.task.task-urgent .task-body { font-weight: 600; }
+.task-due-chip {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.04em; font-weight: 600;
+  color: var(--accent-warn, #d4644a);
+  padding: 2px 6px; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-warn, #d4644a) 14%, transparent);
+}
