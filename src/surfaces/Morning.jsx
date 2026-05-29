@@ -5,7 +5,6 @@ import { IconCheck, IconRegen, groundingIcons } from '../icons.jsx'
 import { TIDE_BACKFILL, GROUNDING } from '../data.js'
 import { useOura } from '../lib/useOura.js'
 import { useHabits } from '../lib/useHabits.js'
-import { useHealthInsight } from '../lib/useHealthInsight.js'
 
 const OURA_FALLBACK = {
   readiness: '—',
@@ -21,21 +20,11 @@ const OURA_FALLBACK = {
 
 export function Morning({ onOpenYesterday }) {
   const { data: ouraLive, loading: ouraLoading } = useOura()
-  const { habits, loading: habitsLoading, toggle: toggleHabit } = useHabits()
+  const { habits, toggle: toggleHabit } = useHabits()
   const OURA = ouraLive ?? OURA_FALLBACK
   const [backfill, setBackfill] = React.useState(TIDE_BACKFILL);
   const [ouraSyncing, setOuraSyncing] = React.useState(false);
   const ouraSyncedAt = ouraLoading ? 'syncing…' : OURA.syncedAtLabel;
-
-  // Health insight: claude edge fn when proxy secret is configured, else
-  // rotating static lines. Inputs are passed only after both Oura and habits
-  // have resolved so the prompt sees real readings.
-  const insightReady = !ouraLoading && !habitsLoading;
-  const {
-    insight,
-    loading: insightLoading,
-    regenerate: regenInsight,
-  } = useHealthInsight({ oura: ouraLive, habits, ready: insightReady });
 
   return (
     <div className="page" data-screen-label="01 Morning">
@@ -92,25 +81,6 @@ export function Morning({ onOpenYesterday }) {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-
-        {/* Insight — clickable, also links to Tide */}
-        <div className="morning-card clickable"
-             role="link" tabIndex={0}
-             title="Open Tide for full insight"
-             onClick={() => console.log('→ Tide')}>
-          <div className="morning-card-label">
-            <span>insight</span>
-            <button className={`regen-btn ${insightLoading ? 'spinning' : ''}`}
-                    title="Regenerate insight"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => { e.stopPropagation(); if (!insightLoading) regenInsight(); }}>
-              <IconRegen />
-            </button>
-          </div>
-          <div className="insight-text fade-in" key={insight ?? 'loading'}>
-            {insight ?? (insightLoading ? 'reading the signal…' : '—')}
           </div>
         </div>
 
