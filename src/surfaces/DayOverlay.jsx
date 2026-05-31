@@ -112,7 +112,7 @@ export function DayOverlay({ kind, onClose }) {
           </div>
           {highlightRow && !highlightEditing ? (
             <button
-              className="morning-card"
+              className="morning-card selectable"
               title="Tap to revise"
               onClick={() => {
                 setHighlightDraft(highlightRow.raw_text)

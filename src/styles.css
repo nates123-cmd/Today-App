@@ -119,8 +119,12 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Editable surfaces still need real text selection + the iOS edit callout. */
-input, textarea, [contenteditable="true"], .selectable {
+/* Editable surfaces — and the user's OWN displayed text — still need real
+   text selection + the iOS edit callout. Re-enable on form fields, anything
+   explicitly marked .selectable, and the read-only renders of user-authored
+   text (mantra they curated, first-up note, saved daily highlight). */
+input, textarea, select, [contenteditable="true"], [contenteditable=""], .selectable,
+.welcome-mantra-text, .welcome-mantra-source, .firstup-content {
   -webkit-user-select: text;
   user-select: text;
   -webkit-touch-callout: default;
