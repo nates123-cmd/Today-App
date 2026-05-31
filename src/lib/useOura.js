@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { useVisibilityKey } from './useVisibilityKey'
 
@@ -39,73 +39,79 @@ export function useOura() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const visibilityKey = useVisibilityKey()
+  const mountedRef = useRef(true)
 
-  useEffect(() => {
-    let cancelled = false
+  // Re-query the latest two daily rows. Exposed as `refetch` so the
+  // re-sync button can pull fresh stats on demand (the health-ingest cron
+  // keeps tide_oura_daily current; this surfaces whatever it last wrote).
+  const load = useCallback(async () => {
     setLoading(true)
-    supabase
+    const { data: rows, error } = await supabase
       .from('tide_oura_daily')
       .select('*')
       .order('date', { ascending: false })
       .limit(2)
-      .then(({ data: rows, error }) => {
-        if (cancelled) return
-        if (error) {
-          setError(error.message)
-          setLoading(false)
-          return
-        }
-        if (!rows?.length) {
-          setData(null)
-          setLoading(false)
-          return
-        }
-        const today = rows[0]
-        const yesterday = rows[1] ?? null
-        const dReadiness = yesterday ? today.readiness_score - yesterday.readiness_score : null
-        const dHrv = yesterday ? today.hrv_avg - yesterday.hrv_avg : null
-        const dRhr = yesterday ? today.resting_hr - yesterday.resting_hr : null
-        const dSleep = yesterday && today.total_sleep_min && yesterday.total_sleep_min
-          ? today.total_sleep_min - yesterday.total_sleep_min
-          : null
-
-        setData({
-          readiness: today.readiness_score,
-          delta: signed(dReadiness),
-          syncedAtLabel: syncTimeLabel(today.fetched_at),
-          rows: [
-            {
-              label: 'sleep',
-              value: formatSleep(today.total_sleep_min, today.sleep_score),
-              delta: dSleep != null ? `${dSleep > 0 ? '+' : ''}${dSleep}m` : null,
-              dir: dSleep != null && dSleep < 0 ? 'down' : 'up',
-            },
-            {
-              label: 'hrv',
-              value: today.hrv_avg != null ? `${today.hrv_avg} ms` : '—',
-              delta: signed(dHrv),
-              dir: dHrv != null && dHrv < 0 ? 'down' : 'up',
-            },
-            {
-              label: 'rhr',
-              value: today.resting_hr != null ? `${today.resting_hr} bpm` : '—',
-              delta: signed(dRhr),
-              // RHR going down is good; flip dir so the delta colors right.
-              dir: dRhr != null && dRhr > 0 ? 'down' : 'up',
-            },
-            {
-              label: 'temp',
-              value: formatTempDelta(today.raw?.readiness) ?? '—',
-              delta: 'norm',
-            },
-          ],
-        })
-        setLoading(false)
-      })
-    return () => {
-      cancelled = true
+    if (!mountedRef.current) return
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
     }
-  }, [visibilityKey])
+    if (!rows?.length) {
+      setData(null)
+      setLoading(false)
+      return
+    }
+    const today = rows[0]
+    const yesterday = rows[1] ?? null
+    const dReadiness = yesterday ? today.readiness_score - yesterday.readiness_score : null
+    const dHrv = yesterday ? today.hrv_avg - yesterday.hrv_avg : null
+    const dRhr = yesterday ? today.resting_hr - yesterday.resting_hr : null
+    const dSleep = yesterday && today.total_sleep_min && yesterday.total_sleep_min
+      ? today.total_sleep_min - yesterday.total_sleep_min
+      : null
 
-  return { data, loading, error }
+    setData({
+      readiness: today.readiness_score,
+      delta: signed(dReadiness),
+      syncedAtLabel: syncTimeLabel(today.fetched_at),
+      rows: [
+        {
+          label: 'sleep',
+          value: formatSleep(today.total_sleep_min, today.sleep_score),
+          delta: dSleep != null ? `${dSleep > 0 ? '+' : ''}${dSleep}m` : null,
+          dir: dSleep != null && dSleep < 0 ? 'down' : 'up',
+        },
+        {
+          label: 'hrv',
+          value: today.hrv_avg != null ? `${today.hrv_avg} ms` : '—',
+          delta: signed(dHrv),
+          dir: dHrv != null && dHrv < 0 ? 'down' : 'up',
+        },
+        {
+          label: 'rhr',
+          value: today.resting_hr != null ? `${today.resting_hr} bpm` : '—',
+          delta: signed(dRhr),
+          // RHR going down is good; flip dir so the delta colors right.
+          dir: dRhr != null && dRhr > 0 ? 'down' : 'up',
+        },
+        {
+          label: 'temp',
+          value: formatTempDelta(today.raw?.readiness) ?? '—',
+          delta: 'norm',
+        },
+      ],
+    })
+    setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    mountedRef.current = true
+    load()
+    return () => {
+      mountedRef.current = false
+    }
+  }, [visibilityKey, load])
+
+  return { data, loading, error, refetch: load }
 }

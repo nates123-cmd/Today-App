@@ -19,7 +19,7 @@ const OURA_FALLBACK = {
 }
 
 export function Morning({ onOpenYesterday }) {
-  const { data: ouraLive, loading: ouraLoading } = useOura()
+  const { data: ouraLive, loading: ouraLoading, refetch: refetchOura } = useOura()
   const { habits, toggle: toggleHabit } = useHabits()
   const OURA = ouraLive ?? OURA_FALLBACK
   const [backfill, setBackfill] = React.useState(TIDE_BACKFILL);
@@ -51,13 +51,14 @@ export function Morning({ onOpenYesterday }) {
               <button className={`regen-btn ${ouraSyncing ? 'spinning' : ''}`}
                       title="Re-sync Oura ring"
                       onPointerDown={(e) => e.stopPropagation()}
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation();
                         if (ouraSyncing) return;
-                        // Spin only — a real re-sync would hit the oura-proxy
-                        // edge fn; deferred until that contract is wired.
+                        // Re-pull the latest stats the health-ingest cron has
+                        // written. Spin until the refetch actually resolves.
                         setOuraSyncing(true);
-                        setTimeout(() => setOuraSyncing(false), 900);
+                        try { await refetchOura(); }
+                        finally { setOuraSyncing(false); }
                       }}>
                 <IconRegen />
               </button>
