@@ -5,177 +5,103 @@ iOS Calendar (which mirrors your Outlook/Google/iCloud accounts), so an iOS
 Shortcut bridges the two: it reads today's calendar events and writes them
 as `placed_blocks` rows with `source='ical'`.
 
-This doc is the data contract. Build the Shortcut once; it stays correct as
-long as the table schema doesn't change.
+## Why this goes through an Edge Function (read this first)
 
-## Strategy
+`placed_blocks` is under per-user RLS (`auth.uid() = user_id`) as of the
+2026-05-29 auth migration. The Shortcut authenticates with the **anon key**,
+whose `auth.uid()` is null — so direct REST `INSERT`/`DELETE` calls to
+`/rest/v1/placed_blocks` silently fail the RLS check and nothing lands. That
+is what broke calendar sync (last good ical rows: 2026-05-29).
 
-**Replace, don't merge.** Each run:
+The fix is the **`ical-ingest` Edge Function**, which runs the writes with the
+service role and stamps the owner's `user_id` so the rows are visible under
+RLS. It is a **drop-in** for the old direct-to-PostgREST calls: it accepts the
+exact DELETE and per-event POST shapes the existing Shortcut already sends.
 
-1. DELETE every row where `date = today AND source = 'ical'`
-2. INSERT one row per non-all-day calendar event
+## Adapting your existing Shortcut — change two URLs, nothing else
 
-This is idempotent — running the Shortcut twice gives the same result.
-Cancelling a meeting and re-running the Shortcut removes it from Today.
-Manually-placed blocks (`source = 'today_user'`) are untouched.
+The current Shortcut has two **Get Contents of URL** actions. Repoint both from
+the table endpoint to the function; leave the method, headers (anon key),
+calendar-parsing actions, and JSON bodies exactly as they are.
 
-## Endpoint + auth
+| Action | Old URL | New URL |
+|---|---|---|
+| DELETE (clear the day) | `…supabase.co/rest/v1/placed_blocks?date=eq.[Date]&source=eq.ical` | `…supabase.co/functions/v1/ical-ingest?date=eq.[Date]&source=eq.ical` |
+| POST (one per event) | `…supabase.co/rest/v1/placed_blocks` | `…supabase.co/functions/v1/ical-ingest` |
 
-Project ref: `xsmnfcmtbpeaccnyinkr`
+Full base: `https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/ical-ingest`
 
+That's the whole change. The function:
+- **DELETE** `?date=eq.YYYY-MM-DD&source=eq.ical` → clears that day's ical rows
+  for the owner (tolerant even if the `&` is missing).
+- **POST** a single flat event → inserts one row, owner-stamped.
+- forces `type='meeting'`, `source='ical'`, `user_id=<owner>`, so those body
+  fields are ignored (harmless to keep sending them).
+- now coerces `hour`/`duration_minutes` from strings too, so the old "the
+  Number type-chip must be set or rows won't render" landmine no longer bites.
+
+It also accepts a batch shape `POST { date, events:[{hour,duration_minutes,
+title,source_id?}] }` (replaces the whole day in one call) if you ever rebuild.
+
+## Auth
+
+Both `apikey` and `Authorization: Bearer …` headers carry the same anon key
+(it is a signed JWT, which is what the function's `verify_jwt` gate checks —
+the publishable `sb_…` key will NOT work). The existing Shortcut already sends
+these; keep them.
+
+**Optional hardening.** Set an `ICAL_INGEST_SECRET` env var on the function
+(Dashboard → Edge Functions → ical-ingest → Secrets) and add a header
+`x-ical-secret: <that value>` to both actions; otherwise the call returns 401.
+Leave it unset and the JWT gate alone applies.
+
+## Smoke-test the function from a shell
+
+```bash
+set -a && source .env && set +a
+TODAY=$(date +%Y-%m-%d)
+B="https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/ical-ingest"
+A=(-H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" -H "Content-Type: application/json")
+
+# clear, then insert one (mirrors the Shortcut's DELETE + per-event POST)
+curl -X DELETE "$B?date=eq.$TODAY&source=eq.ical" "${A[@]}"
+curl -X POST "$B" "${A[@]}" -d "{\"date\":\"$TODAY\",\"hour\":11.5,\"duration_minutes\":30,\"type\":\"meeting\",\"title\":\"smoke\",\"source\":\"ical\"}"
+# clear again to clean up
+curl -X DELETE "$B?date=eq.$TODAY&source=eq.ical" "${A[@]}"
 ```
-Base URL: https://xsmnfcmtbpeaccnyinkr.supabase.co/rest/v1/placed_blocks
-apikey: <VITE_SUPABASE_ANON_KEY>
-Authorization: Bearer <VITE_SUPABASE_ANON_KEY>
-Content-Type: application/json
-```
 
-Both `apikey` and `Authorization` headers are required; both carry the same
-anon key. Anonymous reads/writes are currently allowed (no RLS on this
-table yet).
-
-## Step 1: delete today's ical rows
-
-```
-DELETE https://xsmnfcmtbpeaccnyinkr.supabase.co/rest/v1/placed_blocks?date=eq.YYYY-MM-DD&source=eq.ical
-```
-
-## Step 2: insert one row per event
-
-```
-POST https://xsmnfcmtbpeaccnyinkr.supabase.co/rest/v1/placed_blocks
-Content-Type: application/json
-```
-
-Body (one event at a time):
+## Per-event POST body (for reference — unchanged from before)
 
 ```json
-{
-  "date": "2026-05-20",
-  "hour": 14.5,
-  "duration_minutes": 30,
-  "type": "meeting",
-  "title": "Standup",
-  "source": "ical"
-}
+{ "date": "2026-06-01", "hour": 14.5, "duration_minutes": 30, "type": "meeting", "title": "Standup", "source": "ical" }
 ```
-
-Field rules:
 
 | Field | Source / formula |
 |---|---|
-| `date` | event start date in `YYYY-MM-DD` (local time, not UTC) |
-| `hour` | decimal hour of event start. `9:00 → 9.0`, `14:30 → 14.5`, `15:15 → 15.25` |
-| `duration_minutes` | `(end - start)` in minutes; ints only |
-| `type` | always `"meeting"` |
+| `date` | event start date `YYYY-MM-DD` (local, not UTC) |
+| `hour` | decimal hour of start. `9:00→9.0`, `14:30→14.5`, `15:15→15.25` |
+| `duration_minutes` | `(end - start)` in minutes |
 | `title` | event title |
-| `source` | always `"ical"` (system tag; do NOT use the calendar's friendly name) |
-| `source_id` | optional; omit unless you have a stable event ID |
-| `pillar`, `project_id` | omit |
+| `type`, `source` | ignored by the function (forced to `meeting`/`ical`); fine to keep sending |
+| `source_id` | optional stable event id |
 
-## Building the iOS Shortcut
+## Run order (unchanged)
 
-Apple Shortcuts can't be checked in as text. Build it manually with the
-actions below. Action order matters — magic variables can only reference
-upstream actions.
+The DELETE runs once up front, then the **Repeat with Each** loop POSTs one
+event at a time. Keep the DELETE above **Find Calendar Events** so it doesn't
+wipe rows you just inserted.
 
-### Setup (before the loop)
+## Automation (unchanged)
 
-1. **Date** action (just "Date" in the picker) — represents the current moment.
-2. **Format Date**
-   - Date: the Date variable from step 1
-   - Format: Custom → `yyyy-MM-dd`
-3. **Get Contents of URL** — the DELETE call
-   - Method: `DELETE`
-   - URL: `https://xsmnfcmtbpeaccnyinkr.supabase.co/rest/v1/placed_blocks?date=eq.[FormattedDate]&source=eq.ical`
-     (insert the magic variable from step 2 where `[FormattedDate]` is shown)
-   - Headers: `apikey` + `Authorization: Bearer …`
-   - Request Body: None
-
-### The query
-
-4. **Find Calendar Events Where**
-   - Filters: `Start Date is today`, `Is Not All Day`, `Calendar is <your work calendar>`
-   - Sort by: Start Date, Ascending
-   - No limit
-
-### The loop
-
-5. **Repeat with Each** over the Found Events. Everything below goes *inside* the loop.
-
-   a. **Get Details of Calendar Events** × 3 — Repeat Item, properties: Start Date, End Date, Title
-   b. **Format Date** (Start Date, format `H`) → hour-of-day, 0–23
-   c. **Format Date** (Start Date, format `m`) → minute-of-hour, 0–59
-   d. **Calculate** — first operand: the `m` Format Date output; operator: `÷`; second operand: literal `60`
-   e. **Calculate** — first operand: the `H` Format Date output; operator: `+`; second operand: the Calculate from (d). Output is the decimal hour.
-   f. **Time Between Dates** — first date: Start Date; second date: End Date; unit: `Minutes`
-   g. **Format Date** (Start Date, format `yyyy-MM-dd`) → event date string
-   h. **Get Contents of URL** — the POST
-      - URL: `https://xsmnfcmtbpeaccnyinkr.supabase.co/rest/v1/placed_blocks`
-      - Method: `POST`
-      - Headers: `apikey`, `Authorization: Bearer …`, `Content-Type: application/json`
-      - Request Body: `JSON` with six fields:
-        - `date` (Text) → Format Date from (g)
-        - `hour` (Number) → Calculate from (e)
-        - `duration_minutes` (Number) → Time Between Dates from (f)
-        - `type` (Text) → literal `meeting`
-        - `title` (Text) → Title from (a)
-        - `source` (Text) → literal `ical`
-
-   **Critical:** the type chip on `hour` and `duration_minutes` must be **Number**, not Text. They default to Text. Supabase silently stores strings if you forget, and the day spine won't render them.
-
-### Run order
-
-The setup actions (1–3) must execute *before* the loop, otherwise the DELETE wipes the rows you just inserted. If they end up below the loop after editing, long-press the action handle and drag them above **Find Calendar Events**.
-
-## Landmines we hit building this
-
-These are the gotchas worth remembering — they cost real time.
-
-- **Auto-capitalization on `m`.** iOS's keyboard auto-capitalizes the first character of text fields. Typing `m` into a Format Date format string gets silently corrected to `M`, which is **month**, not minute. For May, that returns `5` instead of `0` and the entire decimal-hour math goes sideways. Fix: type any other letter first, delete it, then type `m`, OR turn off Caps Lock.
-- **Wrong magic variable in Calculate.** The variable picker shows three "Formatted Date" and two "Calculation Result" entries by the time you wire up Calc 1. Long-press each candidate to see its source action before picking. Calc 1's first operand should be the `m` Format Date — not Time Between Dates.
-- **`Authorization` header needs the literal `Bearer ` prefix** (capital B, single space). Missing space or missing prefix → "Invalid API key" error from Supabase even though the key itself is correct.
-- **Dictionary action is redundant.** Build the 6 JSON body fields directly inside the POST's Request Body → JSON editor. iOS Shortcuts can't feed a standalone Dictionary action into a JSON body root in any clean way.
-- **`Calendar Item Identifier` may not be exposed** in Get Details on some iOS versions. Skip it — `source_id` is nullable, and the DELETE-then-INSERT strategy doesn't need a stable ID.
-- **Hour column is `numeric(4,2)`** — caps at 99.99. Any formula bug producing ≥100 throws `numeric field overflow` (code 22003). That error usually means Calc 1 or Calc 2 has the wrong operands.
-
-## Smoke-test the contract before building the Shortcut
-
-A single round-trip with curl confirms the endpoint works from your network
-with your key. Run from a shell with `.env` loaded:
-
-```bash
-source .env
-TODAY=$(date +%Y-%m-%d)
-
-curl -X POST "$VITE_SUPABASE_URL/rest/v1/placed_blocks" \
-  -H "apikey: $VITE_SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" \
-  -H "Content-Type: application/json" \
-  -H "Prefer: return=representation" \
-  -d "{\"date\":\"$TODAY\",\"hour\":11.5,\"duration_minutes\":30,\"type\":\"meeting\",\"title\":\"smoke\",\"source\":\"ical\"}"
-
-curl -X DELETE "$VITE_SUPABASE_URL/rest/v1/placed_blocks?date=eq.$TODAY&source=eq.ical" \
-  -H "apikey: $VITE_SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY"
-```
-
-## Automation
-
-Two Personal Automations cover the typical day:
-
-- **Time of Day → 5:30 AM (or whenever you start)** — pulls a fresh snapshot before you open the app. Set "Run Immediately" so iOS doesn't show a Run/Don't Run prompt.
-- **When I Open Today (the PWA)** — refreshes mid-day after meetings get added or moved. Optional but cheap.
-
-The early-morning run handles the "no surprises" feeling at the start of the day. The on-open run handles meetings added after you've already started.
-
-### Caveats for time-of-day automation
-
-- iOS needs to be **unlocked once** after midnight for the automation to fire reliably on some iOS versions. If the phone hasn't been touched since 2am, the 5:30 trigger may queue until next unlock.
-- iOS Calendar sync delay: if you set Outlook to Fetch (vs Push), recently-added meetings might not be in iOS Calendar yet at 5:30. Either set Push, or schedule the morning run a bit later (6:30+).
-- The Shortcut takes ~5 seconds to complete; it runs in the background and you won't see a UI unless an action errors. If it silently fails, the previous day's `placed_blocks` for that date stick around (the DELETE didn't run).
+- **Time of Day → ~5:30 AM** — fresh snapshot before you open the app (set "Run
+  Immediately"). iOS may need one unlock after midnight to fire reliably.
+- **When I Open Today (the PWA)** — mid-day refresh after meetings move.
+- If Outlook is on Fetch (vs Push), a 5:30 run may miss recently-added
+  meetings; use Push or run later.
 
 ## Polish ideas (not blocking)
 
-- **Skip canceled events.** Either add a `Status is not Canceled` filter to Find Calendar Events (if your iOS exposes it) or wrap the loop body in an `If Title does not contain "Canceled:"`.
-- **Strip prefixes from titles.** A `Replace Text` action on Title (`FW: `, `[External] `, `Canceled: `) before passing it to the POST body.
+- **Skip canceled events.** Add `Status is not Canceled` to Find Calendar
+  Events, or wrap the loop body in `If Title does not contain "Canceled:"`.
+- **Strip prefixes** (`FW: `, `[External] `, `Canceled: `) with a Replace Text
+  on Title before the POST.
