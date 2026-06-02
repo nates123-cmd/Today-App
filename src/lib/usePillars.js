@@ -79,8 +79,11 @@ function buildPillars(projects, tasks) {
     // inconsistent casing/spelling means a raw exact-string match silently
     // drops projects — e.g. 'arrow' projects never landed under the Arrow
     // pillar, and the side-gig projects (stored as 'side') vanished entirely.
-    const pid = pillarTagToId(p.pillar)
-    if (!pid) continue
+    // Active projects whose pillar tag maps to nothing (commonly a null pillar
+    // in Course) used to be dropped here entirely, so Today's active-project
+    // set silently diverged from Course. Route them to the synthetic 'open'
+    // bucket instead, so every active Course project surfaces somewhere.
+    const pid = pillarTagToId(p.pillar) ?? 'open'
     if (!projectsByPillar.has(pid)) projectsByPillar.set(pid, [])
     projectsByPillar.get(pid).push({
       id: p.id,
@@ -99,7 +102,7 @@ function buildPillars(projects, tasks) {
         name: def.name,
         color: def.color,
         openTasks: orphansByPillar.__unassigned__.map(shapeTask),
-        projects: [],
+        projects: projectsByPillar.get('open') ?? [],
       }
     }
     return {
