@@ -174,7 +174,20 @@ const PROJECT_STATUSES = [
   { id: 'dropped',  label: 'dropped'      },
 ];
 
-function CalEventRow({ event, hasPrep }) {
+// Dismissed (manually removed) calendar events. Persisted so the next iCal
+// sync — which re-upserts the meeting — doesn't bring a removed event back.
+// Keyed by the stable iCal source id (falls back to the row id).
+const DISMISSED_MEETINGS_KEY = 'today.dismissedMeetings';
+function calEventKey(e) { return e.sourceId || e.id; }
+function getDismissedMeetings() {
+  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_MEETINGS_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function setDismissedMeetings(set) {
+  localStorage.setItem(DISMISSED_MEETINGS_KEY, JSON.stringify([...set]));
+}
+
+function CalEventRow({ event, hasPrep, onRemove }) {
   const [menu, setMenu] = React.useState(false);
   const timer = React.useRef(null);
   const startPos = React.useRef({ x: 0, y: 0 });
@@ -214,6 +227,12 @@ function CalEventRow({ event, hasPrep }) {
         <div className="cal-event-time">{event.start} — {event.end}</div>
         <div className="cal-event-bar" style={{ background: `var(--pillar-${event.pillar})` }}></div>
         <div className="cal-event-title">{event.title}</div>
+        {onRemove && (
+          <button className="cal-event-prep-remove"
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); onRemove(event); }}
+                  title="remove this event">×</button>
+        )}
       </div>
       {menu && ReactDOM.createPortal(
         <div className="status-modal-backdrop" onPointerDown={() => setMenu(false)}>
@@ -1352,6 +1371,7 @@ function placedToCalEvent(b) {
   }
   return {
     id: b.id,
+    sourceId: b.sourceId ?? null,
     start: fmt(b.hour),
     end: fmt(b.hour + b.duration / 60),
     title: b.title,
@@ -1360,13 +1380,24 @@ function placedToCalEvent(b) {
 }
 
 export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainingMinsChange }) {
+  const [dismissedMeetings, setDismissedMeetings_] = React.useState(() => getDismissedMeetings())
+  const removeCalEvent = React.useCallback((ev) => {
+    const key = calEventKey(ev)
+    setDismissedMeetings_((prev) => {
+      const next = new Set(prev)
+      next.add(key)
+      setDismissedMeetings(next)
+      return next
+    })
+  }, [])
   const calEvents = React.useMemo(
     () =>
       (placed ?? [])
         .filter((b) => b.type === 'meeting')
         .sort((a, b) => a.hour - b.hour)
-        .map(placedToCalEvent),
-    [placed]
+        .map(placedToCalEvent)
+        .filter((e) => !dismissedMeetings.has(calEventKey(e))),
+    [placed, dismissedMeetings]
   )
   // Existing prep blocks keyed by the meeting they're for (source_id).
   // Used to (a) tell CalEventRow whether prep already exists and (b) render
@@ -1581,7 +1612,12 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
       };
       (p.openTasks || []).forEach(visit);
       (p.projects  || []).forEach(proj => (proj.tasks || []).forEach(visit));
-      out[p.id] = { mins, deep, admin };
+      // Projects with at least one still-open task — drives the dock's "P"
+      // count so it reflects live triage state, not a hardcoded default.
+      const projects = (p.projects || []).filter(
+        proj => (proj.tasks || []).some(isOpen)
+      ).length;
+      out[p.id] = { mins, deep, admin, projects };
     });
     onRemainingMinsChange(out);
   }, [taskStatuses, taskEstimates, taskDepths, removed, PILLARS, onRemainingMinsChange]);
@@ -1758,7 +1794,7 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
           {calRows.map((r) =>
             r.kind === 'prep'
               ? <CalPrepRow key={r.prep.id} prep={r.prep} />
-              : <CalEventRow key={r.event.id} event={r.event} hasPrep={r.hasPrep} />
+              : <CalEventRow key={r.event.id} event={r.event} hasPrep={r.hasPrep} onRemove={removeCalEvent} />
           )}
         </div>
 
