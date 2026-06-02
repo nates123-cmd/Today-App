@@ -1161,7 +1161,12 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
               seenProj.add(t.id);
               allProjectTasks.push(t);
             }
-            if (allProjectTasks.length === 0 && !isCompleted) return null;
+            // Hide a project that was EMPTIED during the ritual (had open tasks,
+            // all pushed/dropped/reassigned away) — that's the "cleared" collapse.
+            // But an active project that started with no open tasks (project.tasks
+            // empty straight from the DB) must still surface as a header, else it
+            // vanishes from Today even though Course lists it active.
+            if (allProjectTasks.length === 0 && project.tasks.length > 0 && !isCompleted) return null;
 
             // Reorder visual props
             const isReordering = projectReorder && projectReorder.id === pid;
