@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
+import { useVisibilityKey } from './useVisibilityKey'
 import {
   writebackTaskStatus,
   writebackTaskDoDate,
@@ -121,6 +122,11 @@ export function usePillars() {
   const [pillars, setPillars] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  // Bumps whenever the app/tab is re-shown so we re-pull fresh course_projects
+  // on resume. Without this the Triage list only ever showed the data fetched
+  // at mount, so after Course synced new projects the PWA looked "super old"
+  // until a full reload.
+  const visibilityKey = useVisibilityKey()
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -167,7 +173,7 @@ export function usePillars() {
 
   useEffect(() => {
     refresh()
-  }, [refresh])
+  }, [refresh, visibilityKey])
 
   // We need notion_url at writeback time but pillars state is async; keep a
   // ref of taskId → notion_url so writeback works even if pillars haven't
