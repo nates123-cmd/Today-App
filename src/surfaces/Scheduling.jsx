@@ -110,20 +110,23 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
   // Triage (mins + deep/admin counts) overrides them so the dock reflects
   // actual remaining work.
   const pillarBlocks = React.useMemo(() => {
-    const defaults = [
-      { id: 'arrow',   projects: 3, deep: 2, admin: 3, totalMins: 180, name: 'Arrow' },
-      { id: 'sunny',   projects: 3, deep: 1, admin: 0, totalMins: 60,  name: 'Sunny' },
-      { id: 'sidegig', projects: 0, deep: 0, admin: 0, totalMins: 0,   name: 'Side gig' },
-      { id: 'life',    projects: 2, deep: 0, admin: 1, totalMins: 30,  name: 'Life'  },
+    // Numbers come entirely from the live Triage rollup so the dock stays
+    // accurate and reactive. Before this, hardcoded defaults (3P/2D/3A...)
+    // showed regardless of the actual triage state.
+    const meta = [
+      { id: 'arrow',   name: 'Arrow'    },
+      { id: 'sunny',   name: 'Sunny'    },
+      { id: 'sidegig', name: 'Side gig' },
+      { id: 'life',    name: 'Life'     },
     ];
-    return defaults.map(d => {
+    return meta.map(d => {
       const live = remainingMinsByPillar?.[d.id];
-      if (live == null) return d;
       return {
         ...d,
-        totalMins: live.mins ?? d.totalMins,
-        deep:      live.deep  ?? d.deep,
-        admin:     live.admin ?? d.admin,
+        projects:  live?.projects ?? 0,
+        deep:      live?.deep     ?? 0,
+        admin:     live?.admin    ?? 0,
+        totalMins: live?.mins     ?? 0,
       };
     });
   }, [remainingMinsByPillar]);
