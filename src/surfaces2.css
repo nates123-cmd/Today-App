@@ -315,7 +315,9 @@
 }
 .dock-blocks-row {
   display: flex; gap: 6px;
-  overflow-x: auto; overflow-y: hidden;
+  /* Wrap so every pillar block is visible at once instead of hiding the
+     rest behind a horizontal scroll (only ~2 fit the width otherwise). */
+  flex-wrap: wrap;
   padding: 2px 0 4px;
   scrollbar-width: none;
 }
