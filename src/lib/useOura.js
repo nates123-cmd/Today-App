@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { useVisibilityKey } from './useVisibilityKey'
+import { hasOuraPat, syncOura } from './oura'
 
 function formatSleep(mins, fallbackScore) {
   if (typeof mins === 'number' && mins > 0) {
@@ -105,6 +106,17 @@ export function useOura() {
     setLoading(false)
   }, [])
 
+  // Live re-sync: pull straight from Oura via the proxy, upsert
+  // tide_oura_daily, then re-read so the card reflects the fresh rows. Falls
+  // back to a plain re-read when no PAT is configured. Throws on failure so the
+  // button can surface the error.
+  const sync = useCallback(async () => {
+    if (hasOuraPat()) {
+      await syncOura()
+    }
+    await load()
+  }, [load])
+
   useEffect(() => {
     mountedRef.current = true
     load()
@@ -113,5 +125,5 @@ export function useOura() {
     }
   }, [visibilityKey, load])
 
-  return { data, loading, error, refetch: load }
+  return { data, loading, error, refetch: load, sync, hasPat: hasOuraPat() }
 }

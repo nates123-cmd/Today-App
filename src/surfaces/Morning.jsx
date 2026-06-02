@@ -4,6 +4,7 @@ import React from 'react'
 import { IconCheck, IconRegen, groundingIcons } from '../icons.jsx'
 import { TIDE_BACKFILL, GROUNDING } from '../data.js'
 import { useOura } from '../lib/useOura.js'
+import { setOuraPat } from '../lib/oura.js'
 import { useHabits } from '../lib/useHabits.js'
 
 const OURA_FALLBACK = {
@@ -19,12 +20,43 @@ const OURA_FALLBACK = {
 }
 
 export function Morning({ onOpenYesterday }) {
-  const { data: ouraLive, loading: ouraLoading, refetch: refetchOura } = useOura()
+  const { data: ouraLive, loading: ouraLoading, sync: syncOuraData, hasPat: hasOura } = useOura()
   const { habits, toggle: toggleHabit } = useHabits()
   const OURA = ouraLive ?? OURA_FALLBACK
   const [backfill, setBackfill] = React.useState(TIDE_BACKFILL);
   const [ouraSyncing, setOuraSyncing] = React.useState(false);
+  const [ouraHasKey, setOuraHasKey] = React.useState(hasOura);
   const ouraSyncedAt = ouraLoading ? 'syncing…' : OURA.syncedAtLabel;
+
+  // Prompt for + store an Oura personal access token. Returns true if a key is
+  // now set. Used both by the explicit "+ key" affordance and lazily when the
+  // re-sync button is tapped with no key yet.
+  const promptOuraKey = React.useCallback(() => {
+    const entered = window.prompt(
+      'Paste your Oura personal access token\n(cloud.ouraring.com → Personal Access Tokens). Leave blank to clear.',
+      ''
+    );
+    if (entered === null) return ouraHasKey; // cancelled — leave as-is
+    setOuraPat(entered);
+    const now = !!entered.trim();
+    setOuraHasKey(now);
+    return now;
+  }, [ouraHasKey]);
+
+  // Re-sync handler: ensure a key exists (prompt if not), then pull live from
+  // Oura and re-read. Surfaces failures via alert rather than failing silently.
+  const handleOuraSync = React.useCallback(async () => {
+    if (ouraSyncing) return;
+    if (!ouraHasKey && !promptOuraKey()) return; // no key, user declined
+    setOuraSyncing(true);
+    try {
+      await syncOuraData();
+    } catch (e) {
+      window.alert('Oura sync failed: ' + (e?.message || e));
+    } finally {
+      setOuraSyncing(false);
+    }
+  }, [ouraSyncing, ouraHasKey, promptOuraKey, syncOuraData]);
 
   return (
     <div className="page" data-screen-label="01 Morning">
@@ -43,23 +75,24 @@ export function Morning({ onOpenYesterday }) {
             <span>Oura · tide</span>
             <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <span style={{ fontSize: 10, color: 'var(--ink-tertiary)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-                {ouraSyncing ? 'syncing…' : ouraSyncedAt}
+                {ouraSyncing ? 'syncing…' : (ouraHasKey ? ouraSyncedAt : 'no key')}
               </span>
               <span style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {OURA.delta} <span style={{ fontSize: 10, opacity: 0.7 }}>↗</span>
               </span>
+              {!ouraHasKey && (
+                <button className="regen-btn"
+                        title="Add your Oura access token"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); promptOuraKey(); }}
+                        style={{ fontSize: 11, fontFamily: 'var(--font-mono)', width: 'auto', padding: '0 6px' }}>
+                  + key
+                </button>
+              )}
               <button className={`regen-btn ${ouraSyncing ? 'spinning' : ''}`}
-                      title="Re-sync Oura ring"
+                      title={ouraHasKey ? 'Pull fresh data from Oura' : 'Add an Oura key, then sync'}
                       onPointerDown={(e) => e.stopPropagation()}
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        if (ouraSyncing) return;
-                        // Re-pull the latest stats the health-ingest cron has
-                        // written. Spin until the refetch actually resolves.
-                        setOuraSyncing(true);
-                        try { await refetchOura(); }
-                        finally { setOuraSyncing(false); }
-                      }}>
+                      onClick={(e) => { e.stopPropagation(); handleOuraSync(); }}>
                 <IconRegen />
               </button>
             </span>
