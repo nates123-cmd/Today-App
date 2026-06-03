@@ -4,7 +4,7 @@
 
 import React from 'react'
 import { IconCheck } from '../icons.jsx'
-import { YESTERDAY, TOMORROW, WEEK } from '../data.js'
+import { YESTERDAY, TOMORROW } from '../data.js'
 import { useDailyHighlight } from '../lib/useDailyHighlight.js'
 import { useHabits } from '../lib/useHabits.js'
 import { TomorrowSchedule } from './TomorrowSchedule.jsx'
@@ -57,8 +57,7 @@ export function DayOverlay({ kind, onClose }) {
   }
 
   // Tomorrow: week overview collapsed by default + mode toggle
-  const [weekExpanded, setWeekExpanded] = React.useState(false)
-  const [tomorrowMode, setTomorrowMode] = React.useState('triage')
+  const [tomorrowMode, setTomorrowMode] = React.useState('schedule')
   const [tmrwExpanded, setTmrwExpanded] = React.useState(() => new Set())
   const toggleTmrwExpanded = (id) =>
     setTmrwExpanded((s) => {
@@ -200,62 +199,19 @@ export function DayOverlay({ kind, onClose }) {
         </>
       ) : (
         <>
-          <div className="coming-soon-pill">first design pass</div>
-
-          {/* Week overview — collapsible */}
-          <button
-            className={`week-tile ${weekExpanded ? 'expanded' : ''}`}
-            onClick={() => setWeekExpanded((v) => !v)}
-          >
-            <div className="week-tile-header">
-              <span>this week</span>
-              <span className="week-tile-chev">{weekExpanded ? '▴' : '▾'}</span>
-            </div>
-            <div className="week-tile-row">
-              {WEEK.map((d, i) => (
-                <div
-                  key={i}
-                  className={`week-cell ${d.isToday ? 'today' : ''} ${d.isTomorrow ? 'tomorrow' : ''} ${d.isPast ? 'past' : ''}`}
-                >
-                  <div className="week-cell-day">{d.day}</div>
-                  <div className="week-cell-date">{d.date}</div>
-                  <div
-                    className="week-cell-bar"
-                    style={{ height: Math.min(d.focusH * 8, 32) + 'px' }}
-                  ></div>
-                </div>
-              ))}
-            </div>
-            {weekExpanded && (
-              <div className="week-tile-detail">
-                {WEEK.map((d, i) => (
-                  <div
-                    key={i}
-                    className={`week-detail-row ${d.isTomorrow ? 'highlight' : ''} ${d.isToday ? 'current' : ''}`}
-                  >
-                    <span className="week-detail-name">{d.label}</span>
-                    <span className="week-detail-meta">
-                      {d.meeting} meetings · {d.focusH}h focus · {d.blocks} blocks
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </button>
-
-          {/* Mode toggle: triage vs schedule */}
+          {/* Mode toggle: schedule (default — events + proposals lead) vs triage */}
           <div className="tmrw-mode-toggle">
-            <button
-              className={tomorrowMode === 'triage' ? 'active' : ''}
-              onClick={() => setTomorrowMode('triage')}
-            >
-              Triage
-            </button>
             <button
               className={tomorrowMode === 'schedule' ? 'active' : ''}
               onClick={() => setTomorrowMode('schedule')}
             >
               Schedule
+            </button>
+            <button
+              className={tomorrowMode === 'triage' ? 'active' : ''}
+              onClick={() => setTomorrowMode('triage')}
+            >
+              Triage
             </button>
           </div>
 

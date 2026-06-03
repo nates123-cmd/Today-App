@@ -47,7 +47,11 @@ function blockEquals(a, b) {
     a.type === b.type &&
     a.title === b.title &&
     (a.pillar ?? null) === (b.pillar ?? null) &&
-    (a.projectId ?? null) === (b.projectId ?? null)
+    (a.projectId ?? null) === (b.projectId ?? null) &&
+    // `source` must be compared or accept (today_proposed -> today_user) fires
+    // no UPDATE — the flip would never persist.
+    (a.source ?? null) === (b.source ?? null) &&
+    (a.sourceId ?? null) === (b.sourceId ?? null)
   )
 }
 

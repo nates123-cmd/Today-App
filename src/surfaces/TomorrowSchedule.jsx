@@ -93,17 +93,42 @@ export function TomorrowSchedule() {
               onClick={() => acceptOne(p.id)}
               title="tap to accept this block"
               style={{
+                display: 'block',
                 marginBottom: 8,
                 width: '100%',
                 textAlign: 'left',
-                border: '1px dashed var(--divider)',
-                background: 'transparent',
-                opacity: 0.78,
+                padding: '10px 12px',
+                borderRadius: 'var(--radius, 8px)',
+                border: '1px dashed var(--divider-strong)',
+                borderLeft: `3px solid var(--pillar-${p.pillar}, var(--ink-secondary))`,
+                background: `var(--pillar-${p.pillar}-soft, transparent)`,
                 cursor: 'pointer',
               }}
             >
-              <div className="block-title">{p.title}</div>
-              <div className="block-detail">
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'baseline',
+                  gap: 8,
+                }}
+              >
+                <span style={{ color: 'var(--ink-primary)', fontWeight: 600, fontSize: 14 }}>
+                  {p.title}
+                </span>
+                <span
+                  style={{
+                    color: 'var(--ink-faint)',
+                    fontSize: 10,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                    flexShrink: 0,
+                  }}
+                >
+                  proposed
+                </span>
+              </div>
+              <div style={{ color: 'var(--ink-secondary)', fontSize: 12, marginTop: 3 }}>
                 {PILLAR_NAMES[p.pillar] || p.pillar} · {fmtTime(p.hour)}–
                 {fmtTime(p.hour + p.duration / 60)} · {fmtDur(p.duration)}
               </div>
