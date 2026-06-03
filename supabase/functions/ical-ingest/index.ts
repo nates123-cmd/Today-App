@@ -118,6 +118,10 @@ function normalizeEvent(e, fallbackDate) {
   if (!Number.isFinite(hour) || hour < 0 || hour >= 100) return null; // numeric(4,2) caps < 100
   if (!Number.isFinite(duration) || duration <= 0) return null;
   if (!title) return null;
+  // Noise filters: skip canceled meetings and multi-day blocks (>= 1 day, e.g.
+  // travel/trip events) — they swallow the day grid and aren't schedulable.
+  if (/^cancell?ed:/i.test(title)) return null;
+  if (duration >= 1440) return null;
   const row = {
     user_id: OWNER_ID,
     date,
@@ -136,6 +140,14 @@ async function clearDay(date) {
     `/placed_blocks?date=eq.${date}&source=eq.ical&user_id=eq.${OWNER_ID}`,
     { method: "DELETE", headers: { Prefer: "return=minimal" } },
   );
+}
+
+// Add N calendar days to a YYYY-MM-DD string (UTC math avoids tz drift).
+function addDays(iso, n) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().slice(0, 10);
 }
 
 // Clear an inclusive [from, to] date range in one call so a single Shortcut run
@@ -161,13 +173,17 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  // DELETE clears existing ical rows before re-insert. Two shapes:
+  // DELETE clears existing ical rows before re-insert. Shapes:
   //   ?date=eq.YYYY-MM-DD                  -> single day (original Shortcut)
-  //   ?from=YYYY-MM-DD&to=YYYY-MM-DD       -> inclusive range (today..tomorrow)
+  //   ?from=YYYY-MM-DD&to=YYYY-MM-DD       -> inclusive range
+  //   ?from=YYYY-MM-DD&days=N              -> from..from+N (one date var; the
+  //                                           Shortcut only needs today's date)
   if (req.method === "DELETE") {
     const u = new URL(req.url);
     const from = isoDate((u.searchParams.get("from") ?? "").replace(/^eq\./, ""));
-    const to = isoDate((u.searchParams.get("to") ?? "").replace(/^eq\./, ""));
+    let to = isoDate((u.searchParams.get("to") ?? "").replace(/^eq\./, ""));
+    const days = parseInt(u.searchParams.get("days") ?? "", 10);
+    if (from && !to && Number.isFinite(days)) to = addDays(from, days);
     if (from && to) {
       try {
         await clearRange(from, to);
