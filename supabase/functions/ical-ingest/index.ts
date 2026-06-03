@@ -15,9 +15,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 // accepts all three shapes:
 //
 //   DELETE ?date=eq.YYYY-MM-DD&source=eq.ical   -> clears that day's ical rows
+//   DELETE ?from=YYYY-MM-DD&to=YYYY-MM-DD        -> clears an inclusive range
 //   POST   { date, hour, duration_minutes, title, source_id? }   -> insert one row
-//   POST   { date, events: [ { hour, duration_minutes, title, source_id? }, ... ] }
-//                                                -> replace the whole day at once
+//   POST   { start, end, title, source_id? }     -> insert one row; date, decimal
+//          hour, and duration are derived from the raw Start/End datetimes, so
+//          the Shortcut sends no computed numbers (one Format Date per field)
+//   POST   { date, events: [ { ... }, ... ] }    -> replace the whole day at once
 //
 // type is always forced to 'meeting', source to 'ical', user_id to OWNER_ID.
 
@@ -76,12 +79,42 @@ async function sbFetch(path, opts = {}) {
   return t ? JSON.parse(t) : null;
 }
 
+// Parse a local wall-clock datetime "YYYY-MM-DDTHH:MM" (or with a space). Any
+// trailing timezone offset is IGNORED on purpose: the literal HH:MM in the
+// string is the local time the user sees in Calendar, which is exactly what we
+// want to store. This lets the Shortcut pass a raw Start/End date (one Format
+// Date action, format yyyy-MM-dd'T'HH:mm) and skip all decimal-hour / duration
+// arithmetic — the function derives date, hour, and duration itself.
+function parseLocal(s) {
+  if (typeof s !== "string") return null;
+  const m = s.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return null;
+  const [, y, mo, d, hh, mm] = m;
+  return { date: `${y}-${mo}-${d}`, hour: +hh + +mm / 60, mins: +hh * 60 + +mm };
+}
+
 // Build one placed_blocks row from a calendar event, or null if invalid.
-function normalizeEvent(e, date) {
+// `fallbackDate` is the day to use when the event doesn't self-date via `start`.
+function normalizeEvent(e, fallbackDate) {
   if (!e || typeof e !== "object") return null;
-  const hour = Number(e.hour);
-  const duration = Number(e.duration_minutes ?? e.duration);
+  let date = fallbackDate;
+  let hour = Number(e.hour);
+  let duration = Number(e.duration_minutes ?? e.duration);
+  // Preferred path: derive everything from the raw Start/End datetimes so the
+  // Shortcut sends no computed numbers. Falls back to explicit hour/duration.
+  const st = parseLocal(e.start);
+  if (st) {
+    date = st.date;
+    hour = st.hour;
+    const en = parseLocal(e.end);
+    if (en) {
+      const diff = en.mins - st.mins; // same-day events; ignore rare midnight wrap
+      if (diff > 0) duration = diff;
+    }
+  }
+  date = isoDate(date) ?? date;
   const title = typeof e.title === "string" ? e.title.trim() : "";
+  if (!isoDate(date)) return null;
   if (!Number.isFinite(hour) || hour < 0 || hour >= 100) return null; // numeric(4,2) caps < 100
   if (!Number.isFinite(duration) || duration <= 0) return null;
   if (!title) return null;
@@ -105,6 +138,15 @@ async function clearDay(date) {
   );
 }
 
+// Clear an inclusive [from, to] date range in one call so a single Shortcut run
+// can refresh today AND tomorrow before re-inserting both.
+async function clearRange(from, to) {
+  await sbFetch(
+    `/placed_blocks?date=gte.${from}&date=lte.${to}&source=eq.ical&user_id=eq.${OWNER_ID}`,
+    { method: "DELETE", headers: { Prefer: "return=minimal" } },
+  );
+}
+
 // Pull a YYYY-MM-DD out of a PostgREST-style query value like `eq.2026-06-01`,
 // tolerant of a malformed URL where the `&` got dropped.
 function dateFromQuery(url) {
@@ -119,10 +161,23 @@ Deno.serve(async (req) => {
     return json({ error: "unauthorized" }, 401);
   }
 
-  // DELETE ?date=eq.YYYY-MM-DD&source=eq.ical  (the Shortcut's "clear the day" call)
+  // DELETE clears existing ical rows before re-insert. Two shapes:
+  //   ?date=eq.YYYY-MM-DD                  -> single day (original Shortcut)
+  //   ?from=YYYY-MM-DD&to=YYYY-MM-DD       -> inclusive range (today..tomorrow)
   if (req.method === "DELETE") {
+    const u = new URL(req.url);
+    const from = isoDate((u.searchParams.get("from") ?? "").replace(/^eq\./, ""));
+    const to = isoDate((u.searchParams.get("to") ?? "").replace(/^eq\./, ""));
+    if (from && to) {
+      try {
+        await clearRange(from, to);
+      } catch (e) {
+        return json({ error: "delete failed: " + e.message }, 502);
+      }
+      return json({ from, to, cleared: true });
+    }
     const date = dateFromQuery(req.url);
-    if (!date) return json({ error: "expected ?date=eq.YYYY-MM-DD" }, 400);
+    if (!date) return json({ error: "expected ?date=eq.YYYY-MM-DD or ?from=&to=" }, 400);
     try {
       await clearDay(date);
     } catch (e) {
@@ -136,9 +191,10 @@ Deno.serve(async (req) => {
   let body;
   try { body = await req.json(); } catch { return json({ error: "bad json" }, 400); }
 
-  // Date comes from the body for POSTs (top-level for batch, per-event for flat).
-  const date = isoDate(body?.date);
-  if (!date) return json({ error: "expected a date (YYYY-MM-DD or M/D/YY)" }, 400);
+  // Date: explicit top-level `date`, else derived from a raw `start` datetime
+  // (flat self-dating events). Batch mode still requires an explicit `date`.
+  const date = isoDate(body?.date) ?? parseLocal(body?.start)?.date ?? null;
+  if (!date) return json({ error: "expected a date (YYYY-MM-DD, M/D/YY, or a `start` datetime)" }, 400);
 
   // Batch mode: { date, events: [...] } -> replace the whole day.
   if (Array.isArray(body?.events)) {

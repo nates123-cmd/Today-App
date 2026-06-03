@@ -43,6 +43,51 @@ That's the whole change. The function:
 It also accepts a batch shape `POST { date, events:[{hour,duration_minutes,
 title,source_id?}] }` (replaces the whole day in one call) if you ever rebuild.
 
+## Tomorrow too — one shortcut, server does the math (recommended)
+
+The Tomorrow tab's Schedule view reads `placed_blocks` for tomorrow's date, so it
+needs tomorrow's meetings ingested. Instead of a second shortcut, widen the one
+you have to a rolling **today + tomorrow** window. The function now derives
+`date`, decimal `hour`, and `duration` from a raw Start/End datetime, so the
+Shortcut sends **no computed numbers** — that kills the worst Shortcuts pain
+(decimal-hour math, per-event date juggling).
+
+Three edits to your existing shortcut:
+
+**1. Widen the calendar grab.** In *Find Calendar Events*, set the filter to
+`Start Date` — `is in the next` — `2` — `Days`. (Optional: add `Status` `is not`
+`Canceled`.) This captures the rest of today plus tomorrow.
+
+**2. One range DELETE up front** (replaces the single-day DELETE). You need two
+date strings:
+- *Date* action → `Current Date`; *Format Date* → `yyyy-MM-dd` → call it **Today**.
+- *Adjust Date* → `Current Date` + `2` `Days`; *Format Date* → `yyyy-MM-dd` → call
+  it **Through**.
+- *Get Contents of URL*, Method `DELETE`, URL:
+  `https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/ical-ingest?from=[Today]&to=[Through]`
+  (keep the apikey + Authorization headers). `from`/`to` is inclusive; using
+  `+2 days` guarantees everything the 2-day grab can return gets cleared, so no
+  stale rows pile up.
+
+**3. Simplify the loop body.** Inside *Repeat with Each*:
+- *Format Date* → `Repeat Item`'s **Start Date** → format `yyyy-MM-dd'T'HH:mm` →
+  var **Start**.
+- *Format Date* → `Repeat Item`'s **End Date** → same format → var **End**.
+- *Get Contents of URL*, Method `POST`, URL the function base (no query), body
+  type JSON:
+  ```json
+  { "start": "[Start]", "end": "[End]", "title": "[Repeat Item]" }
+  ```
+
+That's it — no `hour`, no `duration_minutes`, no per-event date. Each event
+self-dates from its own Start, so today's events land on today and tomorrow's on
+tomorrow automatically. Set the automation to run ~5:30 AM (and on opening the
+PWA) as before.
+
+> Prefer not to touch the working shortcut? Duplicate it and shift every date
+> reference `+1 Day` (Adjust Date), pointing the DELETE/POST at tomorrow only.
+> Two shortcuts to maintain, but zero risk to today's sync.
+
 ## Auth
 
 Both `apikey` and `Authorization: Bearer …` headers carry the same anon key
