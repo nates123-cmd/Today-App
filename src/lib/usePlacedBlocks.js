@@ -51,12 +51,14 @@ function blockEquals(a, b) {
   )
 }
 
-export function usePlacedBlocks() {
+// `dateArg` (ISO yyyy-mm-dd) lets the Tomorrow proposal flow operate on a
+// different day's blocks; defaults to today for the live surfaces.
+export function usePlacedBlocks(dateArg) {
   const [placed, setPlacedLocal] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const lastRef = useRef([])
-  const date = todayISO()
+  const date = dateArg ?? todayISO()
   const visibilityKey = useVisibilityKey()
 
   // Initial load + refresh when the PWA returns to foreground (visibilityKey ticks).

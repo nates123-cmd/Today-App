@@ -7,6 +7,7 @@ import { IconCheck } from '../icons.jsx'
 import { YESTERDAY, TOMORROW, WEEK } from '../data.js'
 import { useDailyHighlight } from '../lib/useDailyHighlight.js'
 import { useHabits } from '../lib/useHabits.js'
+import { TomorrowSchedule } from './TomorrowSchedule.jsx'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
@@ -300,30 +301,7 @@ export function DayOverlay({ kind, onClose }) {
               </div>
             </>
           ) : (
-            <>
-              <div className="morning-card-label" style={{ marginBottom: 8 }}>
-                <span>hard-line events</span>
-                <span style={{ color: 'var(--ink-faint)' }}>from gcal</span>
-              </div>
-              {TOMORROW.events.map((e, i) => (
-                <div key={i} className="tmrw-list-item">
-                  <div className="tmrw-list-item-time">{e.time}</div>
-                  <div className="tmrw-list-item-title">{e.title}</div>
-                </div>
-              ))}
-              <div className="morning-card-label" style={{ marginTop: 24, marginBottom: 8 }}>
-                <span>proposed schedule</span>
-                <span style={{ color: 'var(--ink-faint)' }}>draggable tomorrow</span>
-              </div>
-              <div>
-                {TOMORROW.proposed.map((p, i) => (
-                  <div key={i} className={`block ${p.pillar}`} style={{ marginBottom: 8 }}>
-                    <div className="block-title">{p.label}</div>
-                    <div className="block-detail">{p.detail}</div>
-                  </div>
-                ))}
-              </div>
-            </>
+            <TomorrowSchedule />
           )}
         </>
       )}
