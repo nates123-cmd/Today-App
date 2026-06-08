@@ -135,6 +135,21 @@ function normalizeEvent(e, fallbackDate) {
   return row;
 }
 
+// Delete any existing ical row that collides with `row` on (date, hour, title),
+// so a re-ingest of the same event overwrites in place instead of duplicating.
+// The iOS shortcut loops events through the single-insert path (which, unlike
+// the batch path, can't clear-the-day up front), so without this every run
+// appended a fresh copy and the day accumulated ~N duplicates after N runs.
+// Title is wrapped in PostgREST double-quotes (embedded quotes doubled) to stay
+// safe against commas / parens / spaces in meeting names.
+async function clearMatch(row) {
+  const t = encodeURIComponent(`"${String(row.title).replace(/"/g, '""')}"`);
+  await sbFetch(
+    `/placed_blocks?date=eq.${row.date}&hour=eq.${row.hour}&title=eq.${t}&source=eq.ical&user_id=eq.${OWNER_ID}`,
+    { method: "DELETE", headers: { Prefer: "return=minimal" } },
+  );
+}
+
 async function clearDay(date) {
   await sbFetch(
     `/placed_blocks?date=eq.${date}&source=eq.ical&user_id=eq.${OWNER_ID}`,
@@ -232,10 +247,14 @@ Deno.serve(async (req) => {
   }
 
   // Flat mode: a single event per POST (the existing Shortcut's loop body).
-  // The Shortcut's separate DELETE call already cleared the day, so just insert.
+  // We do NOT trust an up-front day-clear here: the Shortcut loops events one at
+  // a time and (in practice) re-runs without a preceding DELETE, so a blind
+  // insert duplicates the whole day on every run. clearMatch makes each insert
+  // idempotent on (date, hour, title).
   const row = normalizeEvent(body, date);
   if (!row) return json({ error: "invalid event (need hour, positive duration_minutes, title)" }, 400);
   try {
+    await clearMatch(row);
     await sbFetch("/placed_blocks", {
       method: "POST",
       body: JSON.stringify(row),
