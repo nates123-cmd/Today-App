@@ -34,10 +34,22 @@ export function TomorrowSchedule() {
   const { obstacles, proposed, generate, regenerate, acceptAll, acceptOne, loading } =
     useProposedSchedule(dateISO)
 
-  const meetings = obstacles
-    .filter((b) => b.type === 'meeting')
-    .slice()
-    .sort((a, b) => a.hour - b.hour)
+  // Dedup ical meetings: the iOS shortcut re-ingests each event on every run
+  // (single-insert mode doesn't clear the day), so the same meeting can land in
+  // placed_blocks many times. Collapse by hour+title so each shows once.
+  const meetings = (() => {
+    const seen = new Set()
+    return obstacles
+      .filter((b) => b.type === 'meeting')
+      .slice()
+      .sort((a, b) => a.hour - b.hour)
+      .filter((b) => {
+        const key = `${b.hour}|${(b.title || '').trim().toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+  })()
   const sortedProposed = proposed.slice().sort((a, b) => a.hour - b.hour)
 
   return (
