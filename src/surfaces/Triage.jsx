@@ -1396,12 +1396,24 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
     })
   }, [])
   const calEvents = React.useMemo(
-    () =>
-      (placed ?? [])
+    () => {
+      // Safeguard against duplicate meeting rows the iCal sync can pile up in
+      // placed_blocks (same meeting re-inserted on each run). Collapse events
+      // that share a start time + title down to one so the calendar list never
+      // shows the same meeting twice, however many rows exist in the DB.
+      const seen = new Set()
+      return (placed ?? [])
         .filter((b) => b.type === 'meeting')
         .sort((a, b) => a.hour - b.hour)
         .map(placedToCalEvent)
-        .filter((e) => !dismissedMeetings.has(calEventKey(e))),
+        .filter((e) => !dismissedMeetings.has(calEventKey(e)))
+        .filter((e) => {
+          const k = `${e.start}|${e.title}`
+          if (seen.has(k)) return false
+          seen.add(k)
+          return true
+        })
+    },
     [placed, dismissedMeetings]
   )
   // Existing prep blocks keyed by the meeting they're for (source_id).
