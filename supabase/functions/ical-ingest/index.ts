@@ -227,12 +227,18 @@ Deno.serve(async (req) => {
   const date = isoDate(body?.date) ?? parseLocal(body?.start)?.date ?? null;
   if (!date) return json({ error: "expected a date (YYYY-MM-DD, M/D/YY, or a `start` datetime)" }, 400);
 
-  // Batch mode: { date, events: [...] } -> replace the whole day.
+  // Batch mode: { date, events: [...] } -> replace the days the batch covers.
   if (Array.isArray(body?.events)) {
     const rows = body.events.map((e) => normalizeEvent(e, date)).filter(Boolean);
     const skipped = body.events.length - rows.length;
+    // Events self-date via `start`, so one batch can place rows on several future
+    // days. Clearing only the body's top-level `date` left every other day to
+    // accumulate a fresh copy on each run — the duplicate-meeting bug. Clear each
+    // DISTINCT day the batch actually writes to (and the body date itself, so a
+    // day that emptied out — all its meetings canceled — still gets wiped).
+    const dates = [...new Set([date, ...rows.map((r) => r.date)])];
     try {
-      await clearDay(date);
+      for (const d of dates) await clearDay(d);
       if (rows.length) {
         await sbFetch("/placed_blocks", {
           method: "POST",
@@ -243,7 +249,7 @@ Deno.serve(async (req) => {
     } catch (e) {
       return json({ error: "write failed: " + e.message }, 502);
     }
-    return json({ date, inserted: rows.length, skipped, mode: "batch" });
+    return json({ date, dates, inserted: rows.length, skipped, mode: "batch" });
   }
 
   // Flat mode: a single event per POST (the existing Shortcut's loop body).
