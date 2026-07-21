@@ -43,6 +43,8 @@ export default function App() {
   const [openBlock, setOpenBlock] = useState(null)
 
   const pagerRef = useRef(null)
+  const activePageRef = useRef(initialIdx)
+  activePageRef.current = activePage
 
   // Persist last-page + mark today as "opened" once the user moves past
   // welcome. Staying on welcome and reloading should still show welcome —
@@ -57,8 +59,24 @@ export default function App() {
   // Initial scroll-to-page (runs once — initialIdx is session-stable).
   useEffect(() => {
     if (!pagerRef.current) return
-    pagerRef.current.scrollTop = initialIdx * pagerRef.current.clientHeight
+    // 'instant' matters: the pager sets scroll-behavior: smooth, and an
+    // animated jump here gets interrupted by scroll-snap and lands back on
+    // page 0.
+    pagerRef.current.scrollTo({ top: initialIdx * pagerRef.current.clientHeight, behavior: 'instant' })
   }, [initialIdx])
+
+  // Page offsets are computed from the pager's pixel height, so a window
+  // resize or an iPad rotation leaves the scroll position mid-page. Re-pin to
+  // the active page whenever the pager changes size.
+  useEffect(() => {
+    const el = pagerRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      el.scrollTo({ top: activePageRef.current * el.clientHeight, behavior: 'instant' })
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   const onPagerScroll = (e) => {
     const idx = Math.round(e.target.scrollTop / e.target.clientHeight)

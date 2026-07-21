@@ -2,6 +2,9 @@
    Lifted from mockups, extended for full interactive prototype. */
 
 :root {
+  /* Layout — width of the app column on screens wider than a phone. */
+  --app-col: 480px;
+
   /* DARK (default) — warm-dark, green undertone */
   --bg-canvas: #1a1d1a;
   --bg-surface: #21241f;
@@ -134,23 +137,34 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ────────────────────────── STAGE ────────────────────────── */
 .stage {
-  width: 100vw; height: 100vh;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   display: flex; align-items: center; justify-content: center;
   position: relative;
 }
 
+/* The app column. One layout everywhere: on phones it fills the viewport, on
+   iPad/desktop it keeps the same width but runs full viewport height, centred
+   on the stage. No device bezel — this is the app, not a preview of one. */
 .phone {
-  width: 390px; height: 820px;
+  width: min(100vw, var(--app-col));
+  height: 100vh;
+  height: 100dvh;
   background: var(--bg-canvas);
-  border-radius: 44px;
-  border: 1px solid var(--divider-strong);
   overflow: hidden;
   position: relative;
-  box-shadow:
-    var(--phone-shadow),
-    0 0 0 8px var(--phone-frame-outer),
-    0 0 0 9px var(--phone-frame-inner);
   transition: background 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
+}
+
+/* Once the stage is wider than the column, give the column edges so it reads
+   as a deliberate panel rather than a stranded phone screenshot. */
+@media (min-width: 481px) {
+  .phone {
+    border-left: 1px solid var(--divider-strong);
+    border-right: 1px solid var(--divider-strong);
+    box-shadow: var(--phone-shadow);
+  }
 }
 
 .status-bar {

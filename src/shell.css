@@ -1,14 +1,20 @@
 /* Shell-level adjustments on top of styles.css.
-   The prototype's .phone is a 390×820 desktop preview frame. On mobile we
-   want the column to fill the viewport; on desktop we keep the framed
-   preview centered on the stage. */
+   One responsive column at every size: full-bleed on phones, a full-height
+   centered panel on iPad/desktop. Sizing lives in --app-col (styles.css). */
 
 #root {
   width: 100vw;
   height: 100vh;
+  height: 100dvh;
 }
 
+/* Don't let the absolutely-positioned status bar sit underneath the iOS status bar. */
+.status-bar { padding-top: max(14px, env(safe-area-inset-top)); }
+
 @media (max-width: 480px) {
+  /* Lowered into the home-indicator zone so the day-spine sits at the very
+     bottom of the screen instead of floating above empty space. */
+  .day-spine { bottom: 8px; }
   html, body {
     overflow: auto;
     background: var(--bg-canvas);
@@ -23,16 +29,7 @@
   .phone {
     width: 100vw;
     height: 100svh;
-    border-radius: 0;
-    border: none;
-    box-shadow: none;
-    background: var(--bg-canvas);
   }
-  /* Don't let the prototype's absolutely-positioned status bar sit underneath the iOS status bar. */
-  .status-bar { padding-top: max(14px, env(safe-area-inset-top)); }
-  /* Lowered into the home-indicator zone so the day-spine sits at the very
-     bottom of the screen instead of floating above empty space. */
-  .day-spine  { bottom: 8px; }
 }
 
 /* Surface stubs — placeholder content for un-ported pages. */
