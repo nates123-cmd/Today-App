@@ -4,6 +4,17 @@
 :root {
   /* Layout — width of the app column on screens wider than a phone. */
   --app-col: 480px;
+}
+
+/* Touch devices (phone, iPad in any orientation, incl. with a Magic Keyboard —
+   iPadOS still reports the primary pointer as coarse) run edge to edge. The
+   centred column is only for mouse-driven desktop, where a full-width ritual
+   screen would read as a stretched phone app. */
+@media (pointer: coarse) {
+  :root { --app-col: 100vw; }
+}
+
+:root {
 
   /* DARK (default) — warm-dark, green undertone */
   --bg-canvas: #1a1d1a;
@@ -159,7 +170,7 @@ button { font-family: inherit; cursor: pointer; }
 
 /* Once the stage is wider than the column, give the column edges so it reads
    as a deliberate panel rather than a stranded phone screenshot. */
-@media (min-width: 481px) {
+@media (min-width: 481px) and (pointer: fine) {
   .phone {
     border-left: 1px solid var(--divider-strong);
     border-right: 1px solid var(--divider-strong);
