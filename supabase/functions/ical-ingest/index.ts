@@ -139,15 +139,27 @@ function normalizeEvent(e, fallbackDate) {
 // so a re-ingest of the same event overwrites in place instead of duplicating.
 // The iOS shortcut loops events through the single-insert path (which, unlike
 // the batch path, can't clear-the-day up front), so without this every run
-// appended a fresh copy and the day accumulated ~N duplicates after N runs.
-// Title is wrapped in PostgREST double-quotes (embedded quotes doubled) to stay
-// safe against commas / parens / spaces in meeting names.
+// appends a fresh copy and the day accumulates ~N duplicates after N runs.
+//
+// Matching is done in JS on the day's rows, then deleted by id. The previous
+// version filtered on `title=eq."<title>"` in the URL — PostgREST kept those
+// double quotes as part of the value, so the DELETE matched nothing, returned
+// 204, and every run still duplicated the whole day (6 copies of some meetings
+// by 2026-07-21). Filtering by date/source/user_id only, then deleting by uuid,
+// keeps meeting titles (commas, parens, curly apostrophes) out of the query
+// string entirely.
 async function clearMatch(row) {
-  const t = encodeURIComponent(`"${String(row.title).replace(/"/g, '""')}"`);
-  await sbFetch(
-    `/placed_blocks?date=eq.${row.date}&hour=eq.${row.hour}&title=eq.${t}&source=eq.ical&user_id=eq.${OWNER_ID}`,
-    { method: "DELETE", headers: { Prefer: "return=minimal" } },
+  const existing = await sbFetch(
+    `/placed_blocks?select=id,hour,title&date=eq.${row.date}&source=eq.ical&user_id=eq.${OWNER_ID}`,
   );
+  const dupes = (existing ?? []).filter(
+    (r) => Number(r.hour) === Number(row.hour) && String(r.title ?? "").trim() === row.title,
+  );
+  if (!dupes.length) return;
+  await sbFetch(`/placed_blocks?id=in.(${dupes.map((r) => r.id).join(",")})`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  });
 }
 
 async function clearDay(date) {

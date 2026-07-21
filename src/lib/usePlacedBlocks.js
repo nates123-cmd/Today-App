@@ -39,6 +39,22 @@ function toRow(block, date) {
   }
 }
 
+// Collapse blocks that describe the same thing at the same time — same start
+// hour, same title. The iCal ingest re-inserted a meeting on every run for
+// weeks (its delete filter never matched; fixed in ical-ingest 2026-07-21), and
+// some days had six copies of a standup. Triage and TomorrowSchedule each grew
+// their own copy of this filter; doing it here means every surface that reads
+// through this hook — Welcome's "first up", Scheduling, Live — is covered too.
+export function dedupeBlocks(blocks) {
+  const seen = new Set()
+  return blocks.filter((b) => {
+    const key = `${b.hour}|${(b.title || '').trim().toLowerCase()}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 // Compare a single row's writeable fields to decide whether an UPDATE is needed.
 function blockEquals(a, b) {
   return (
@@ -81,7 +97,7 @@ export function usePlacedBlocks(dateArg) {
           setLoading(false)
           return
         }
-        const blocks = (data ?? []).map(fromRow)
+        const blocks = dedupeBlocks((data ?? []).map(fromRow))
         lastRef.current = blocks
         setPlacedLocal(blocks)
         setLoading(false)
