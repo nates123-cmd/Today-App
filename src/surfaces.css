@@ -207,6 +207,9 @@
 .tide-check.checked svg { opacity: 1; }
 .tide-label { flex: 1; font-size: 14px; color: var(--ink-primary); }
 .tide-item.checked .tide-label { color: var(--ink-tertiary); text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+/* Challenge rows carry a second line: which day it is, and the streak. */
+.tide-sub { display: block; font-size: 11px; color: var(--ink-tertiary); letter-spacing: .3px; margin-top: 2px; text-decoration: none; }
+.tide-item.checked .tide-sub { color: var(--ink-faint); }
 .tide-tag {
   font-family: var(--font-mono); font-size: 9px;
   letter-spacing: 0.12em; text-transform: uppercase;

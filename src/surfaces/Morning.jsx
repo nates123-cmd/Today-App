@@ -6,6 +6,7 @@ import { TIDE_BACKFILL, GROUNDING } from '../data.js'
 import { useOura } from '../lib/useOura.js'
 import { setOuraPat } from '../lib/oura.js'
 import { useHabits } from '../lib/useHabits.js'
+import { useChallenges } from '../lib/useChallenges.js'
 
 const OURA_FALLBACK = {
   readiness: '—',
@@ -22,6 +23,9 @@ const OURA_FALLBACK = {
 export function Morning({ onOpenYesterday }) {
   const { data: ouraLive, loading: ouraLoading, sync: syncOuraData, hasPat: hasOura } = useOura()
   const { habits, toggle: toggleHabit } = useHabits()
+  // Challenges from Ink ride in the same checklist as habits — a deliberate
+  // push and a routine both just need a tick before the day gets away.
+  const { challenges, toggle: toggleChallenge } = useChallenges()
   const OURA = ouraLive ?? OURA_FALLBACK
   const [backfill, setBackfill] = React.useState(TIDE_BACKFILL);
   const [ouraSyncing, setOuraSyncing] = React.useState(false);
@@ -122,8 +126,29 @@ export function Morning({ onOpenYesterday }) {
         <div className="morning-card">
           <div className="morning-card-label">
             <span>tide checklist</span>
-            <span>{habits.filter(h => h.checked).length} / {habits.length}</span>
+            <span>
+              {habits.filter(h => h.checked).length + challenges.filter(c => c.checked).length}
+              {' / '}
+              {habits.length + challenges.length}
+            </span>
           </div>
+          {/* Challenges sit above the habits: they are the thing being pushed on,
+              and they end, so they should be the first tick of the day. */}
+          {challenges.map(c => (
+            <div key={c.id} className={`tide-item ${c.checked ? 'checked' : ''}`}>
+              <button className={`tide-check ${c.checked ? 'checked' : ''}`}
+                      onClick={() => toggleChallenge(c.id)}>
+                <IconCheck />
+              </button>
+              <div className="tide-label">
+                {c.label}
+                <span className="tide-sub">
+                  day {c.day}{c.days ? ` of ${c.days}` : ''}{c.streak > 1 ? ` · ${c.streak} day streak` : ''}
+                </span>
+              </div>
+              <div className="tide-tag">{c.tag}</div>
+            </div>
+          ))}
           {habits.map(h => (
             <div key={h.id} className={`tide-item ${h.checked ? 'checked' : ''}`}>
               <button className={`tide-check ${h.checked ? 'checked' : ''}`}
