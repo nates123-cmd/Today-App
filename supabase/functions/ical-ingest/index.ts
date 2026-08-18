@@ -22,6 +22,9 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //          the Shortcut sends no computed numbers (one Format Date per field)
 //   POST   { date, events: [ { ... }, ... ] }    -> replace the whole day at once
 //
+// Single-event POSTs also sweep rows left behind by earlier runs (see
+// sweepStale), so a canceled meeting disappears instead of living forever.
+//
 // type is always forced to 'meeting', source to 'ical', user_id to OWNER_ID.
 
 const CORS = {
@@ -186,6 +189,51 @@ async function clearRange(from, to) {
   );
 }
 
+// How long after a row is written it still counts as "this run". The Shortcut
+// loops one POST per event, a second or two apart, so anything older than this
+// came from an earlier run.
+const RUN_GRACE_MS = 30 * 60 * 1000;
+const TZ = "America/New_York";
+
+// Local wall-clock date + decimal hour (the function runs in UTC; placed_blocks
+// stores what the user sees in Calendar).
+function nowLocal() {
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date()).reduce((a, x) => (a[x.type] = x.value, a), {});
+  const h = p.hour === "24" ? 0 : Number(p.hour); // some runtimes emit 24 at midnight
+  return { date: `${p.year}-${p.month}-${p.day}`, hour: h + Number(p.minute) / 60 };
+}
+
+// Drop rows an earlier run wrote that this run did NOT re-send.
+//
+// The Shortcut's per-event loop only ever inserts, so a meeting that gets
+// canceled (or moved to another time) after it was first ingested keeps its old
+// row forever: the day accumulates every version of the schedule it has ever
+// seen, and the Today grid / morning brief show meetings that are not happening.
+// Cancels arrive as an ABSENCE, so no POST can announce them — the function has
+// to infer the delete the Shortcut never sends.
+//
+// Rule: a row is stale if it was written before this run (created_at older than
+// RUN_GRACE_MS) AND sits on a slot this run has already walked past. The loop
+// goes in start order, so writing an event on `throughDate` means every earlier
+// day has had its say. Today is swept only from the current hour forward: a
+// mid-day re-run's calendar grab starts at run time, so pruning behind it would
+// erase the morning it can no longer re-send.
+async function sweepStale(throughDate) {
+  const cutoff = encodeURIComponent(new Date(Date.now() - RUN_GRACE_MS).toISOString());
+  const { date: today, hour: nowHour } = nowLocal();
+  const base = `&source=eq.ical&user_id=eq.${OWNER_ID}&created_at=lt.${cutoff}`;
+  const del = (q) => sbFetch(`/placed_blocks?${q}${base}`, {
+    method: "DELETE", headers: { Prefer: "return=minimal" },
+  });
+  // Whole days already passed (tomorrow .. the day being written).
+  if (throughDate > today) await del(`date=gt.${today}&date=lte.${throughDate}`);
+  // Today, from the run's own clock forward — the part it could have re-sent.
+  await del(`date=eq.${today}&hour=gte.${nowHour.toFixed(2)}`);
+}
+
 // Pull a YYYY-MM-DD out of a PostgREST-style query value like `eq.2026-06-01`,
 // tolerant of a malformed URL where the `&` got dropped.
 function dateFromQuery(url) {
@@ -272,6 +320,7 @@ Deno.serve(async (req) => {
   const row = normalizeEvent(body, date);
   if (!row) return json({ error: "invalid event (need hour, positive duration_minutes, title)" }, 400);
   try {
+    await sweepStale(row.date);
     await clearMatch(row);
     await sbFetch("/placed_blocks", {
       method: "POST",
