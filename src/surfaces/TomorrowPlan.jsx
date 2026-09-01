@@ -14,6 +14,8 @@ import { Scheduling } from './Scheduling.jsx'
 import { useProposedSchedule } from '../lib/useProposedSchedule.js'
 import { buildBriefing, pillarTimeBank } from '../lib/tomorrowBriefing.js'
 import { freeMinutes } from '../lib/proposeSchedule.js'
+import { useDismissedEvents } from '../lib/useDismissedEvents.js'
+import { filterDismissed, countDismissed, isReingested } from '../lib/dismissedEvents.js'
 
 const PILLAR_NAMES = {
   arrow: 'Arrow',
@@ -68,8 +70,9 @@ function SectionLabel({ n, children, right }) {
 }
 
 export function TomorrowPlan() {
-  const date = React.useMemo(tomorrowDate, [])
+  const date = React.useMemo(() => tomorrowDate(), [])
   const dateISO = React.useMemo(() => isoOf(date), [date])
+  const { dismissed, dismiss, restoreAll } = useDismissedEvents(dateISO)
   const {
     pillars,
     placed,
@@ -84,12 +87,14 @@ export function TomorrowPlan() {
     denyOne,
     clearDenied,
     loading,
-  } = useProposedSchedule(dateISO)
+  } = useProposedSchedule(dateISO, dismissed)
 
   const [view, setView] = React.useState('brief') // 'brief' | 'grid'
 
   // Stage 1 — the raw day. Meetings and already-placed routines are the fixed
   // shape of tomorrow; everything else gets fitted around them.
+  // `obstacles` already excludes dismissed events (the hook filters them), so
+  // this list is what's actually still on the day.
   const agenda = React.useMemo(
     () =>
       obstacles
@@ -98,6 +103,23 @@ export function TomorrowPlan() {
         .sort((a, b) => a.hour - b.hour),
     [obstacles]
   )
+
+  const hiddenCount = React.useMemo(() => countDismissed(placed, dismissed), [placed, dismissed])
+
+  // Removing an event from the day. An ical row is NOT ours to delete — the
+  // Shortcut re-ingests the whole day on its next run and would bring it
+  // straight back — so those are dismissed (hidden durably) instead. Blocks
+  // Today owns (routines, ad-hoc) get a real delete.
+  const removeFromDay = React.useCallback(
+    (block) => {
+      if (isReingested(block)) dismiss(block)
+      else setPlaced((prev) => prev.filter((b) => b.id !== block.id))
+    },
+    [dismiss, setPlaced]
+  )
+
+  // The grid must agree with the agenda about what's on the day.
+  const visiblePlaced = React.useMemo(() => filterDismissed(placed, dismissed), [placed, dismissed])
 
   const free = React.useMemo(() => freeMinutes(WINDOW, obstacles), [obstacles])
   const bookedMins = React.useMemo(
@@ -135,7 +157,7 @@ export function TomorrowPlan() {
         </div>
         <Scheduling
           embedded
-          placed={placed}
+          placed={visiblePlaced}
           setPlaced={setPlaced}
           remainingMinsByPillar={timeBank}
           title="Tomorrow"
@@ -173,12 +195,33 @@ export function TomorrowPlan() {
             <div className="tmrw-list-item-time">{fmtTime(e.hour)}</div>
             <div className="tmrw-list-item-title">{e.title}</div>
             <div className="tmrw-list-item-dur">{fmtDur(e.duration)}</div>
+            <button
+              className="tmrw-list-item-del"
+              onClick={() => removeFromDay(e)}
+              title={
+                isReingested(e)
+                  ? 'not happening — hide it and free the time'
+                  : 'remove from tomorrow'
+              }
+              aria-label={`remove ${e.title}`}
+            >
+              ×
+            </button>
           </div>
         ))
       ) : (
         <div className="tmrw-hint">
-          {loading ? 'loading…' : "nothing on the calendar yet — tomorrow's events fill in overnight."}
+          {loading
+            ? 'loading…'
+            : hiddenCount
+              ? 'every event hidden — nothing fixed on the day.'
+              : "nothing on the calendar yet — tomorrow's events sync in overnight."}
         </div>
+      )}
+      {hiddenCount > 0 && (
+        <button className="tmrw-undeny" onClick={restoreAll}>
+          {hiddenCount} hidden · restore
+        </button>
       )}
 
       {/* ─── 02 course+ ─── */}
