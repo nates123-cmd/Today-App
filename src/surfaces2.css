@@ -1307,3 +1307,197 @@
   letter-spacing: 0.1em; color: var(--ink-faint);
   font-style: normal; text-align: center;
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Tomorrow → Plan (TomorrowPlan): agenda → course+ → suggested
+   ───────────────────────────────────────────────────────────── */
+
+/* Day header card — the shape of tomorrow at a glance */
+.tmrw-daycard {
+  background: var(--bg-surface);
+  border: 1px solid var(--divider);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+.tmrw-daycard-date {
+  font-family: var(--font-display);
+  font-size: 20px; font-weight: 300;
+  color: var(--ink-primary); letter-spacing: -0.02em;
+}
+.tmrw-daycard-stats {
+  display: flex; gap: 16px; margin-top: 8px;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.08em; color: var(--ink-tertiary);
+}
+.tmrw-daycard-stats b {
+  color: var(--ink-primary); font-weight: 500;
+}
+
+/* Numbered stage label */
+.tmrw-step-label {
+  display: flex; align-items: baseline; gap: 8px;
+  margin: 24px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--divider);
+}
+.tmrw-step-n {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--accent); letter-spacing: 0.1em;
+}
+.tmrw-step-title {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.2em; text-transform: uppercase;
+  color: var(--ink-secondary); flex: 1;
+}
+.tmrw-step-right {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.1em; color: var(--ink-faint);
+}
+
+/* 01 agenda rows — routines read quieter than hard meetings */
+.tmrw-list-item-dur {
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--ink-faint); flex-shrink: 0;
+}
+.tmrw-list-item-title { flex: 1; }
+.tmrw-list-item.routine .tmrw-list-item-title { color: var(--ink-secondary); }
+
+/* 02 course+ briefing */
+.tmrw-brief-group { margin-bottom: 14px; }
+.tmrw-brief-head {
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+  padding: 6px 0 4px;
+}
+.tmrw-brief-head.overdue { color: var(--pillar-arrow); }
+.tmrw-brief-head.due     { color: var(--accent); }
+.tmrw-brief-count {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--ink-faint); letter-spacing: 0.05em;
+}
+.tmrw-brief-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.tmrw-brief-row .pillar-dot { margin-top: 5px; flex-shrink: 0; }
+.tmrw-brief-body { flex: 1; min-width: 0; }
+.tmrw-brief-label {
+  font-size: 13px; color: var(--ink-primary);
+  letter-spacing: -0.005em; line-height: 1.35;
+}
+.tmrw-brief-meta {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.06em; color: var(--ink-tertiary);
+  margin-top: 3px;
+}
+
+/* 03 suggested — one row per proposal, confirm or deny */
+.tmrw-sched-actions {
+  display: flex; gap: 8px; margin: 4px 0 12px;
+}
+.tmrw-btn {
+  flex: 1; padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--divider-strong);
+  background: var(--bg-surface);
+  color: var(--ink-primary);
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  cursor: pointer;
+}
+.tmrw-btn:disabled { opacity: 0.45; cursor: default; }
+.tmrw-btn.primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tmrw-prop {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px dashed var(--divider-strong);
+  border-left: 3px solid var(--ink-faint);
+  background: var(--bg-surface);
+}
+.tmrw-prop.arrow   { border-left-color: var(--pillar-arrow);   background: var(--pillar-arrow-soft); }
+.tmrw-prop.sunny   { border-left-color: var(--pillar-sunny);   background: var(--pillar-sunny-soft); }
+.tmrw-prop.sidegig { border-left-color: var(--pillar-sidegig); background: var(--pillar-sidegig-soft); }
+.tmrw-prop.life    { border-left-color: var(--pillar-life);    background: var(--pillar-life-soft); }
+.tmrw-prop-body { flex: 1; min-width: 0; }
+.tmrw-prop-title {
+  font-size: 13px; font-weight: 500; color: var(--ink-primary);
+  letter-spacing: -0.005em; line-height: 1.3;
+}
+.tmrw-prop-meta {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.06em; color: var(--ink-tertiary);
+  margin-top: 3px;
+}
+.tmrw-prop-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.tmrw-prop-btn {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--divider-strong);
+  background: var(--bg-elevated);
+  color: var(--ink-secondary);
+  font-size: 13px; line-height: 1;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.tmrw-prop-btn.confirm { color: var(--accent); border-color: var(--accent); }
+.tmrw-prop-btn.deny:hover    { color: var(--pillar-arrow); }
+.tmrw-prop-btn.confirm:hover { background: var(--pillar-life-soft); }
+
+.tmrw-undeny {
+  display: block; width: 100%;
+  margin-top: 6px; padding: 7px;
+  background: transparent; border: none;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-faint); cursor: pointer;
+}
+
+/* → the hand-fill grid */
+.tmrw-fill-cta {
+  display: block; width: 100%;
+  margin-top: 20px; padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--divider-strong);
+  background: var(--bg-elevated);
+  color: var(--ink-primary);
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.15em; text-transform: uppercase;
+  cursor: pointer;
+}
+.tmrw-gridhead {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.tmrw-back {
+  background: transparent; border: none;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-secondary); cursor: pointer; padding: 0;
+}
+.tmrw-gridhead-date {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.08em; color: var(--ink-faint);
+}
+
+/* Scheduling embedded in the overlay: no pager-page chrome, and the grid
+   scrolls inside the overlay rather than owning the viewport. */
+.scheduling-embedded { display: block; }
+.scheduling-embedded .scheduling { height: auto; padding: 0; }
+.scheduling-embedded .sched-header { display: none; }
+.scheduling-embedded .sched-dock {
+  position: static;
+  margin-top: 16px;
+  border-radius: 10px;
+  border: 1px solid var(--divider);
+}

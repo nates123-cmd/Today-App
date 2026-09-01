@@ -42,7 +42,7 @@ function toRow(block, date) {
 // Collapse blocks that describe the same thing at the same time — same start
 // hour, same title. The iCal ingest re-inserted a meeting on every run for
 // weeks (its delete filter never matched; fixed in ical-ingest 2026-07-21), and
-// some days had six copies of a standup. Triage and TomorrowSchedule each grew
+// some days had six copies of a standup. Triage and the Tomorrow flow each grew
 // their own copy of this filter; doing it here means every surface that reads
 // through this hook — Welcome's "first up", Scheduling, Live — is covered too.
 export function dedupeBlocks(blocks) {

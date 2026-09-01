@@ -1,13 +1,14 @@
 // DayOverlay — slides in from left (yesterday) or right (tomorrow).
 // Yesterday: reflection — habit backfill + Ink highlight + stats grid.
-// Tomorrow: preview — week tile + triage queue / proposed schedule mode toggle.
+// Tomorrow: planning — agenda -> Course+ briefing -> suggested slotting -> the
+// drag grid (TomorrowPlan), with a triage-queue mode alongside it.
 
 import React from 'react'
 import { IconCheck } from '../icons.jsx'
 import { YESTERDAY, TOMORROW } from '../data.js'
 import { useDailyHighlight } from '../lib/useDailyHighlight.js'
 import { useHabits } from '../lib/useHabits.js'
-import { TomorrowSchedule } from './TomorrowSchedule.jsx'
+import { TomorrowPlan } from './TomorrowPlan.jsx'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
@@ -205,7 +206,7 @@ export function DayOverlay({ kind, onClose }) {
               className={tomorrowMode === 'schedule' ? 'active' : ''}
               onClick={() => setTomorrowMode('schedule')}
             >
-              Schedule
+              Plan
             </button>
             <button
               className={tomorrowMode === 'triage' ? 'active' : ''}
@@ -257,7 +258,7 @@ export function DayOverlay({ kind, onClose }) {
               </div>
             </>
           ) : (
-            <TomorrowSchedule />
+            <TomorrowPlan />
           )}
         </>
       )}

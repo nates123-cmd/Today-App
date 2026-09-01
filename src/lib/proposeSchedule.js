@@ -8,6 +8,7 @@
 // deep/admin (admin not placed), scored by pillar + status + urgency, selected
 // greedily against a readiness-capped minutes budget with per-pillar decay, then
 // placed earliest-first around immovable obstacles (meetings/routines).
+// `excludeTaskIds` drops tasks the user denied so a regenerate honours the no.
 
 const DEFAULT_DEEP = 45 // est missing -> under-commit on a draft you'll review
 const ADMIN_LINE = 30 // >=30 deep, <30 admin (spec §6)
@@ -162,6 +163,7 @@ export function proposeSchedule({
   daysFromToday,
   projectsById = {},
   window = { first: 8, last: 18 },
+  excludeTaskIds = [],
 }) {
   const free = freeMinutes(window, obstacles)
   if (free < 45) return [] // no deep-work room (Q9)
@@ -169,7 +171,13 @@ export function proposeSchedule({
   const { factor, cap } = budgetParams(readiness?.readiness_score)
   let budget = Math.min(cap, Math.round(free * factor))
 
+  // Denied suggestions: the user rejected these tasks for this day, so a
+  // regenerate must not offer them again (a "no" that un-sticks on the next
+  // tap is worse than no deny button at all).
+  const denied = new Set(excludeTaskIds)
+
   const pool = tasks
+    .filter((t) => !denied.has(t.id))
     .map((t) => ({ t, base: scoreTask(t, daysFromToday, projectsById), dur: blockMinutes(t) }))
     .filter((x) => x.base > -Infinity && x.dur <= budget)
   if (!pool.length) return []

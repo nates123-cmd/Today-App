@@ -4,6 +4,11 @@
 // - Drag the bottom-edge handle of a block to resize it (15-min steps)
 // - Tap (no drag) cycles 30 → 45 → 60 → 30
 // - Click an empty hour line to insert an ad-hoc block
+//
+// Date-agnostic: it renders whatever `placed`/`setPlaced` pair it is handed, so
+// the Tomorrow flow reuses it verbatim against tomorrow's blocks by passing
+// `usePlacedBlocks(tomorrowISO)`. `embedded` drops the full-page chrome (and the
+// today-only prep listener) so it can sit inside the Tomorrow overlay.
 
 import React from 'react'
 import { CAL_EVENTS, PILLARS, ROUTINES } from '../data.js'
@@ -15,7 +20,15 @@ const FIRST_HOUR = 8;
 const LAST_HOUR = 18;
 const TOTAL_HOURS = LAST_HOUR - FIRST_HOUR + 1;
 
-export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remainingMinsByPillar }) {
+export function Scheduling({
+  placed: placedProp,
+  setPlaced: setPlacedProp,
+  remainingMinsByPillar,
+  embedded = false,
+  showNow = !embedded,
+  title = 'Schedule',
+  subtitle = 'drag · tap to expand · pull bottom edge to resize',
+}) {
   const hours = React.useMemo(() => {
     const arr = [];for (let h = FIRST_HOUR; h <= LAST_HOUR; h++) arr.push(h);return arr;
   }, []);
@@ -67,7 +80,7 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
     };
   }, []);
   const nowDecimal = now.getHours() + now.getMinutes() / 60;
-  const nowVisible = nowDecimal >= FIRST_HOUR && nowDecimal <= LAST_HOUR + 1;
+  const nowVisible = showNow && nowDecimal >= FIRST_HOUR && nowDecimal <= LAST_HOUR + 1;
   const nowTop = (nowDecimal - FIRST_HOUR) * HOUR_PX;
 
   // Listen for prep-block additions from Triage's calendar long-press.
@@ -75,6 +88,7 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
   // and identify the prep block by (source='prep', sourceId=eventId) for
   // dedup / removal.
   React.useEffect(() => {
+    if (embedded) return // prep events are today-only; don't mirror them onto tomorrow
     const onPrepAdded = (e) => {
       const d = e.detail;
       setPlaced((prev) => {
@@ -104,7 +118,7 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
       window.removeEventListener('today:prep-added', onPrepAdded);
       window.removeEventListener('today:prep-removed', onPrepRemoved);
     };
-  }, []);
+  }, [embedded]);
 
   // Time bank per pillar. Defaults are baseline; the live rollup from
   // Triage (mins + deep/admin counts) overrides them so the dock reflects
@@ -326,14 +340,22 @@ export function Scheduling({ placed: placedProp, setPlaced: setPlacedProp, remai
     setAdHocHour(null);setAdHocText('');
   };
 
+  // Embedded (Tomorrow overlay) drops the pager-page chrome: `.page` is a
+  // scroll-snap slide in the vertical pager and would break the overlay layout.
+  // Swapping the class on ONE element (rather than wrapping in a component
+  // defined during render) keeps the grid mounted — a remount mid-gesture would
+  // drop pointer capture and abort the drag.
   return (
-    <div className="page" data-screen-label="03 Scheduling">
+    <div
+      className={embedded ? 'scheduling-embedded' : 'page'}
+      data-screen-label={embedded ? undefined : '03 Scheduling'}
+    >
       <div className="scheduling">
         <div className="sched-header">
-          <div className="sched-title">Schedule</div>
+          <div className="sched-title">{title}</div>
           <div className="sched-meta">8a — 6p</div>
         </div>
-        <div className="sched-subtitle">drag · tap to expand · pull bottom edge to resize</div>
+        <div className="sched-subtitle">{subtitle}</div>
 
         <div className="hour-cal-scroll">
           <div className="hour-cal" ref={calRef}
