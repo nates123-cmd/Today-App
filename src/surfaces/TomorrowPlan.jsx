@@ -15,6 +15,7 @@ import { useProposedSchedule } from '../lib/useProposedSchedule.js'
 import { buildBriefing, pillarTimeBank } from '../lib/tomorrowBriefing.js'
 import { freeMinutes } from '../lib/proposeSchedule.js'
 import { isReingested } from '../lib/dismissedEvents.js'
+import { useReminders } from '../lib/useReminders.js'
 import { addDays, isoDate } from '../lib/day.js'
 
 const PILLAR_NAMES = {
@@ -34,6 +35,16 @@ function fmtTime(h) {
   const m = String(Math.round((h - hr) * 60)).padStart(2, '0')
   const hr12 = hr > 12 ? hr - 12 : hr === 0 ? 12 : hr
   return `${hr12}:${m}${hr < 12 ? 'a' : 'p'}`
+}
+
+// "14:30" -> "2:30p". The stored value is wall clock as written on the phone,
+// so this is pure formatting — no timezone conversion, deliberately.
+function fmtClock(hhmm) {
+  const m = /^(\d{2}):(\d{2})$/.exec(hhmm || '')
+  if (!m) return hhmm || ''
+  const h = parseInt(m[1], 10)
+  const h12 = h % 12 === 0 ? 12 : h % 12
+  return `${h12}:${m[2]}${h < 12 ? 'a' : 'p'}`
 }
 
 function fmtDur(mins) {
@@ -83,6 +94,11 @@ export function TomorrowPlan() {
     restoreDismissed,
     dismissedCount,
   } = useProposedSchedule(dateISO)
+
+  // Reminders are their own strip, not Course+ tasks — errands live beside the
+  // plan rather than competing with the Now lane for deep-work slots.
+  const { dated: remDated, undated: remUndated, complete: completeReminder } =
+    useReminders(dateISO)
 
   const [view, setView] = React.useState('brief') // 'brief' | 'grid'
 
@@ -245,6 +261,33 @@ export function TomorrowPlan() {
         <div className="tmrw-hint">
           {loading ? 'loading backlog…' : 'nothing due or in flight — a clear day.'}
         </div>
+      )}
+
+      {/* ─── reminders ─── */}
+      {(remDated.length > 0 || remUndated.length > 0) && (
+        <>
+          <SectionLabel n="—" right="from reminders">
+            errands
+          </SectionLabel>
+          {[...remDated, ...remUndated].map((r) => (
+            <div key={r.id} className="tmrw-rem-row">
+              <button
+                className="tmrw-rem-check"
+                onClick={() => completeReminder(r.id)}
+                title="mark done"
+                aria-label={`complete ${r.title}`}
+              />
+              <div className="tmrw-rem-body">
+                <div className="tmrw-rem-title">{r.title}</div>
+                <div className="tmrw-rem-meta">
+                  {r.list || 'reminders'}
+                  {r.dueTime ? ` · ${fmtClock(r.dueTime)}` : ''}
+                  {!r.dueDate ? ' · undated' : ''}
+                </div>
+              </div>
+            </div>
+          ))}
+        </>
       )}
 
       {/* ─── 03 suggested slotting ─── */}

@@ -1523,3 +1523,35 @@
   color: var(--pillar-arrow);
   background: var(--bg-elevated);
 }
+
+/* Reminders strip — errands from Apple Reminders. Deliberately quieter than a
+   Course+ row: these sit beside the plan, they are not project work. */
+.tmrw-rem-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.tmrw-rem-check {
+  flex-shrink: 0;
+  width: 16px; height: 16px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 1px solid var(--divider-strong);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.tmrw-rem-check:hover {
+  border-color: var(--accent);
+  background: var(--pillar-life-soft);
+}
+.tmrw-rem-body { flex: 1; min-width: 0; }
+.tmrw-rem-title {
+  font-size: 13px; color: var(--ink-primary);
+  letter-spacing: -0.005em; line-height: 1.35;
+}
+.tmrw-rem-meta {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.06em; color: var(--ink-tertiary);
+  margin-top: 3px;
+}
