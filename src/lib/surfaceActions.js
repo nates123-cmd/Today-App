@@ -21,7 +21,17 @@ export function daysFromToday(iso, today = new Date()) {
 // 'empty' | 'normal' | 'urgent_single' | 'urgent_double'.
 export function surfaceActions(incomplete, today = new Date()) {
   if (!incomplete || incomplete.length === 0) return { state: 'empty', count: 0 }
-  const nextCandidate = incomplete.find((t) => t.status === 'next') ?? incomplete[0]
+  // Course+ is a pull method: a task in the Now lane is the one Nate has
+  // deliberately pulled into focus, so it is what a collapsed project should
+  // show. Before this, nothing was mapped to 'now', no task was 'next' either,
+  // and the fallback surfaced `incomplete[0]` — i.e. whatever happened to sort
+  // first in the Icebox pile. That is why Triage never reflected the priorities
+  // set in Course+.
+  // Only `now` counts as pulled here. Course+'s legacy `in-progress` value has
+  // had no writer since the 2026-06 rebuild, and treating it as pulled would
+  // change what surfaces for tasks that merely carry the stale value.
+  const pulled = incomplete.find((t) => t.status === 'now')
+  const nextCandidate = pulled ?? incomplete.find((t) => t.status === 'next') ?? incomplete[0]
   const soonest = incomplete
     .map((t) => ({ t, d: daysFromToday(t.doDate, today) }))
     .filter((x) => x.d !== null)

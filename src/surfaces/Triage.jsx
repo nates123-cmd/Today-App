@@ -849,8 +849,9 @@ function ProjectRow({ project, liveTasks, onPushMany, onDropMany, onWeeklyMany,
             })()}
             {surfaceCount > 0 && (
               <button className="project-show-more"
-                      onClick={() => setTasksOpen(o => !o)}>
-                {tasksOpen ? 'show less' : `+${surfaceCount} more`}
+                      onClick={() => setTasksOpen(o => !o)}
+                      title={tasksOpen ? 'collapse to the pulled task' : 'open the icebox to pull something in'}>
+                {tasksOpen ? 'show less' : `+${surfaceCount} in icebox`}
               </button>
             )}
             {/* Inline subtle "+" to add a task to this project */}
@@ -1092,10 +1093,20 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
   const isCollapsed = state === 'collapsed';
   const isEmpty = totalTasks === 0 && pushedCount > 0;
 
+  // How many of this pillar's tasks are actually pulled into the Now lane. The
+  // header used to read just "37 open", which is the Icebox pile — the number
+  // Nate reacted to. What matters at a glance is how many things he has chosen
+  // to be working on; the pile is context, so it comes second.
+  const nowCount = pillar.projects.reduce(
+    (acc, p) => acc + p.tasks.filter((t) => isStillOpen(t) && (t.status === 'now' || t.status === 'in_progress')).length,
+    0
+  ) + pillarOpenTasks.filter((t) => isStillOpen(t) && (t.status === 'now' || t.status === 'in_progress')).length;
+
   let countLabel;
   if (isEmpty)         countLabel = 'all cleared';
   else if (isCollapsed) countLabel = `${totalTasks} committed`;
   else if (pushedCount) countLabel = `${totalTasks} kept · ${pushedCount} pushed`;
+  else if (nowCount)    countLabel = `${nowCount} in focus · ${totalTasks} open`;
   else                  countLabel = `${totalTasks} open`;
 
   const translateY = isDragging ? dragOffsetY :
