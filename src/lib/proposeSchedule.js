@@ -57,11 +57,32 @@ export function blockMinutes(t) {
   return m >= 53 ? 60 : 45 // 60 caps a single session
 }
 
+// Course+ is a pull method: `now` is what Nate has deliberately pulled into
+// focus (soft cap 3), `next` is a flagged Icebox item, and plain `icebox` is
+// the ~100-item pile he has NOT chosen. Ranking has to respect that gap or the
+// day gets planned out of the pile — the complaint that prompted this.
+// Icebox still scores above nothing so a day with an empty Now lane can be
+// filled, but it never outranks something pulled.
+const STATUS_SCORE = {
+  now: 70,
+  in_progress: 55, // legacy Course+ value, treated as in-focus
+  next: 30,
+  open: 5,
+  icebox: -20,
+}
+
 export function scoreTask(t, daysFromToday, projectsById) {
   if (t.status === 'waiting' || t.status === 'blocked') return -Infinity
   if (!isDeep(t)) return -Infinity // v1: deep only
   let s = 10 * (PILLAR_RANK[t.pillar] ?? 0) // fixed order as base
-  s += t.status === 'in_progress' ? 40 : t.status === 'next' ? 30 : 0
+  s += STATUS_SCORE[t.status] ?? 0
+  // Manual drag order within a project is Course+'s real priority signal
+  // (`priority` is unset on nearly everything). Small weight so it breaks ties
+  // without overriding urgency.
+  if (typeof t.sort === 'number') s += Math.max(0, 8 - t.sort * 0.5)
+  // A task whose due date has been pushed 3+ times is "drift" in Course+ — it
+  // is being avoided, so surface it rather than let it sink again.
+  if ((t.rescheduleCount ?? 0) >= 3) s += 15
   if (t.doDate) {
     const d = daysFromToday(t.doDate)
     if (d != null) {

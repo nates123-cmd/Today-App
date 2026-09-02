@@ -21,35 +21,54 @@ const PILLAR_DEFS = [
 const HIDDEN_STATUSES = new Set(['done', 'dropped', 'archived', 'triage'])
 
 // --- Course+ task status <-> Today status ----------------------------------
-// Course+ stores task state across two columns: `done` (bool) and `task_status`
-// (none/next/in-progress/waiting/done/null). Today uses a single status string
-// ('open' | 'next' | 'in_progress' | 'waiting' | 'done' | 'dropped' | ...).
+// Course+ runs Cal Newport's PULL METHOD, and the lane is effectively binary:
+// `task_status='now'` is the Now lane (what Nate has actually pulled into
+// focus, soft-capped at 3 GLOBALLY), and every other open task sits in Icebox
+// (stored `backlog`). `next` (bool) and `waiting` are hints rendered on top of
+// Icebox, not lanes of their own — Course+'s own picker writes
+// `{next:true, task_status:'backlog'}` when you mark something Next.
+//
+// LANDMINE this fixes: Today never mapped `'now'`. It fell through to the
+// default branch and became plain 'open', so the 2-3 tasks Nate had actually
+// pulled into focus were indistinguishable from the ~100 sitting in Icebox —
+// which is why Today "wasn't laying out the priorities set in Course+".
+//
+// `task_status` values `'next'` and `'none'` still exist in the data but have
+// no current writer in Course+; they predate the 2026-06 pull rebuild and
+// behave as Icebox. `priority === 1` auto-pulls into Now (Course+ does the
+// same); priority 2/3 band the Icebox order.
 function cpTaskToStatus(t) {
   if (t.done) return 'done'
-  switch (t.task_status) {
-    case 'in-progress': return 'in_progress'
-    case 'waiting':     return 'waiting'
-    case 'next':        return 'next'
-    default:            return t.next ? 'next' : 'open'
-  }
+  if (t.task_status === 'now' || t.priority === 1) return 'now'
+  if (t.task_status === 'waiting' || t.waiting) return 'waiting'
+  if (t.task_status === 'in-progress') return 'in_progress' // legacy, no writer
+  if (t.next || t.task_status === 'next') return 'next'
+  if (t.task_status === 'backlog') return 'icebox'
+  return 'open' // 'none' / null — no signal set
 }
 
 // Translate a Today status string into a cp_tasks column patch. Course+ has no
 // 'dropped'/'triage'/'archived' concept: 'dropped' is hidden by marking done;
 // 'triage'/'blocked' park the task as 'waiting' (closest available state).
+// Writes must match what Course+'s own status picker writes (TaskSheet), or the
+// two apps disagree about the same task. Notably "next" is
+// `{next:true, task_status:'backlog'}` — NOT `task_status:'next'`, which has no
+// writer in Course+ any more.
 function statusToCpPatch(status) {
   switch (status) {
-    case 'done':        return { done: true,  task_status: 'done',        next: false }
-    case 'next':        return { done: false, task_status: 'next',        next: true }
-    case 'in_progress': return { done: false, task_status: 'in-progress', next: false }
-    case 'waiting':     return { done: false, task_status: 'waiting',     next: false }
-    case 'triage':      return { done: false, task_status: 'waiting',     next: false }
-    case 'blocked':     return { done: false, task_status: 'waiting',     next: false }
-    case 'dropped':     return { done: true,  task_status: 'none',        next: false }
+    case 'done':        return { done: true,  task_status: 'done',    next: false }
+    case 'now':         return { done: false, task_status: 'now',     next: false, waiting: null }
+    case 'next':        return { done: false, task_status: 'backlog', next: true,  waiting: null }
+    case 'in_progress': return { done: false, task_status: 'now',     next: false, waiting: null }
+    case 'waiting':     return { done: false, task_status: 'waiting', next: false }
+    case 'triage':      return { done: false, task_status: 'waiting', next: false }
+    case 'blocked':     return { done: false, task_status: 'waiting', next: false }
+    case 'dropped':     return { done: true,  task_status: 'backlog', next: false }
+    case 'icebox':
     case 'open':
     case null:
-    case undefined:     return { done: false, task_status: 'none',        next: false }
-    default:            return { done: false, task_status: status,        next: false }
+    case undefined:     return { done: false, task_status: 'backlog', next: false, waiting: null }
+    default:            return { done: false, task_status: status,    next: false }
   }
 }
 
@@ -85,6 +104,14 @@ function shapeTask(t) {
     doDate: t.due_date,
     projectId: t.project_id,
     pillar: t._pillar ?? null,
+    // `sort` is Course+'s manual drag order — the actual expression of "what
+    // matters first" within a project, since `priority` is unset on almost
+    // everything. Carried so Today can rank by it instead of by row order.
+    sort: t.sort ?? null,
+    priority: t.priority ?? null,
+    // How many times this task's due date has been pushed. Course+ calls 3+
+    // "drift" — a thing being avoided.
+    rescheduleCount: t.reschedule_count ?? 0,
     // Course+ tasks are not Notion-backed; no writeback URL.
     notionUrl: null,
   }
@@ -127,8 +154,15 @@ function buildPillars(projects, tasks) {
       id: p.id,
       name: p.name,
       meta: projectMeta(p),
-      dueDate: null,
-      outcome: null,
+      // These were hardcoded null, so a project's own deadline and definition
+      // of done never reached any Today surface — and proposeSchedule's
+      // project-due-date scoring could never fire. The columns are `due` and
+      // `blurb` on cp_projects.
+      dueDate: p.due ?? null,
+      outcome: p.blurb ?? null,
+      status: p.status,
+      priority: p.priority ?? null,
+      sort: p.sort ?? null,
       tasks: (byProject.get(p.id) ?? []).map(shapeTask),
     })
   }
@@ -169,8 +203,12 @@ export function usePillars() {
       supabase.from('cp_areas').select('id, name'),
       supabase
         .from('cp_projects')
-        .select('id, area_id, name, status, priority, sort')
-        .eq('status', 'active')
+        // `sent` = out, awaiting reply. Course+ counts it as live work
+        // alongside `active` (its cross-project rollup reads both), so
+        // filtering to `active` alone quietly dropped a whole project state.
+        // `on-hold` (Waiting) / `idea` (Icebox) / `archived` stay out.
+        .select('id, area_id, name, status, priority, sort, due, blurb')
+        .in('status', ['active', 'sent'])
         .order('sort', { ascending: true, nullsFirst: false }),
     ])
     if (areasRes.error || projectsRes.error) {
@@ -189,7 +227,9 @@ export function usePillars() {
     const tasksRes = projectIds.length
       ? await supabase
           .from('cp_tasks')
-          .select('id, project_id, label, done, next, work_type, task_status, due_date, sort')
+          .select(
+            'id, project_id, label, done, next, waiting, work_type, task_status, due_date, sort, priority, reschedule_count'
+          )
           .in('project_id', projectIds)
           .eq('done', false)
           .order('sort', { ascending: true, nullsFirst: false })

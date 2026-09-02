@@ -22,11 +22,15 @@ const SOON_DAYS = 3 // surfaceActions' urgency window
 // Buckets, in the order a task falls into them (first match wins — every task
 // appears exactly once across the whole briefing).
 export const BRIEFING_GROUPS = [
+  // `now` leads: in Course+'s pull method this is the small set Nate has
+  // deliberately pulled into focus (soft cap 3), so it outranks even an overdue
+  // Icebox item. Everything below it is context.
+  { key: 'now', label: 'in focus now', hint: 'pulled in course+' },
   { key: 'overdue', label: 'overdue', hint: 'past due' },
   { key: 'due', label: 'due that day', hint: 'lands tomorrow' },
   { key: 'soon', label: 'due soon', hint: 'within 3 days' },
   { key: 'in_progress', label: 'in progress', hint: 'already started' },
-  { key: 'next', label: 'next actions', hint: 'per project' },
+  { key: 'next', label: 'next actions', hint: 'flagged in course+' },
 ]
 
 // pillars -> flat rows carrying the display context the briefing needs
@@ -51,6 +55,9 @@ export function flattenForBriefing(pillars) {
 // `d` is the day delta relative to the planned day (0 = due that day).
 function groupFor(task, d) {
   if (task.status === 'waiting' || task.status === 'blocked') return null
+  // The Now lane wins over its own due date: a pulled task belongs at the top
+  // of the briefing whether or not it happens to be dated.
+  if (task.status === 'now') return 'now'
   if (d != null) {
     if (d < 0) return 'overdue'
     if (d === 0) return 'due'
@@ -58,7 +65,10 @@ function groupFor(task, d) {
   }
   if (task.status === 'in_progress') return 'in_progress'
   if (task.status === 'next') return 'next'
-  return null // untouched backlog: real, but not part of a next-day briefing
+  // Undated Icebox — real work, but not what tomorrow is about. Course+'s whole
+  // point is that you pull FROM here deliberately, so Today must not dump the
+  // pile into a briefing.
+  return null
 }
 
 // Sort inside a group: soonest due first, then started-before-not-started,
@@ -67,10 +77,16 @@ function compareRows(a, b) {
   const ad = a.days ?? Infinity
   const bd = b.days ?? Infinity
   if (ad !== bd) return ad - bd
-  const rank = (t) => (t.status === 'in_progress' ? 0 : t.status === 'next' ? 1 : 2)
+  const rank = (t) =>
+    t.status === 'now' ? 0 : t.status === 'in_progress' ? 1 : t.status === 'next' ? 2 : 3
   const ar = rank(a)
   const br = rank(b)
   if (ar !== br) return ar - br
+  // Then Course+'s manual drag order, which is how Nate actually expresses
+  // priority inside a project.
+  const as = typeof a.sort === 'number' ? a.sort : Infinity
+  const bs = typeof b.sort === 'number' ? b.sort : Infinity
+  if (as !== bs) return as - bs
   return (a.label || '').localeCompare(b.label || '')
 }
 
