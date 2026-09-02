@@ -117,6 +117,11 @@ function toRow(r: Record<string, unknown>, fallbackList?: unknown) {
   // sends everything.
   if (truthy(r.completed ?? r.isCompleted)) return null;
   const rawDue = r.due ?? r.dueDate ?? r.due_date ?? null;
+  // Today only wants reminders that are actually SCHEDULED. An undated reminder
+  // ("someday, renew the passport") is a list item, not part of a day plan, and
+  // Reminders is full of them — so they never enter the table. The app then
+  // shows exactly the day it is displaying.
+  if (!isoDate(rawDue)) return null;
   const list = r.list ?? r.listName ?? r.list_name ?? fallbackList ?? null;
   const priority = Number(r.priority);
   return {

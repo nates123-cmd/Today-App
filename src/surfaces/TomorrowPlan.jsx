@@ -97,8 +97,7 @@ export function TomorrowPlan() {
 
   // Reminders are their own strip, not Course+ tasks — errands live beside the
   // plan rather than competing with the Now lane for deep-work slots.
-  const { dated: remDated, undated: remUndated, complete: completeReminder } =
-    useReminders(dateISO)
+  const { reminders, complete: completeReminder } = useReminders(dateISO)
 
   const [view, setView] = React.useState('brief') // 'brief' | 'grid'
 
@@ -264,12 +263,12 @@ export function TomorrowPlan() {
       )}
 
       {/* ─── reminders ─── */}
-      {(remDated.length > 0 || remUndated.length > 0) && (
+      {reminders.length > 0 && (
         <>
           <SectionLabel n="—" right="from reminders">
             errands
           </SectionLabel>
-          {[...remDated, ...remUndated].map((r) => (
+          {reminders.map((r) => (
             <div key={r.id} className="tmrw-rem-row">
               <button
                 className="tmrw-rem-check"
@@ -282,7 +281,6 @@ export function TomorrowPlan() {
                 <div className="tmrw-rem-meta">
                   {r.list || 'reminders'}
                   {r.dueTime ? ` · ${fmtClock(r.dueTime)}` : ''}
-                  {!r.dueDate ? ' · undated' : ''}
                 </div>
               </div>
             </div>

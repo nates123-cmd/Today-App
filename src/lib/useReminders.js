@@ -42,10 +42,11 @@ function compare(a, b) {
   return (a.title || '').localeCompare(b.title || '')
 }
 
-// `dateISO` selects the day. Reminders with no due date are included too —
-// an undated reminder is still something to get done, it just isn't pinned to
-// a day — unless `datedOnly` is set.
-export function useReminders(dateISO, { datedOnly = false } = {}) {
+// `dateISO` selects the day, and ONLY that day. Undated reminders are
+// deliberately excluded: Nate wants the strip to be what's marked for today and
+// tomorrow, not a dump of the whole Reminders app. (Undated ones don't even
+// reach the table — the ingest drops them.)
+export function useReminders(dateISO) {
   const date = dateISO ?? todayISO()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -58,9 +59,11 @@ export function useReminders(dateISO, { datedOnly = false } = {}) {
   // the foreground) reloads quietly in the background instead of flashing a
   // spinner over a list that is already on screen.
   const load = useCallback(async () => {
-    let q = supabase.from(TABLE).select('*').eq('completed', false)
-    q = datedOnly ? q.eq('due_date', date) : q.or(`due_date.eq.${date},due_date.is.null`)
-    const { data, error } = await q
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select('*')
+      .eq('completed', false)
+      .eq('due_date', date)
     if (error) {
       setError(error.message)
       setRows([])
@@ -69,7 +72,7 @@ export function useReminders(dateISO, { datedOnly = false } = {}) {
       setRows((data ?? []).map(fromRow))
     }
     setLoading(false)
-  }, [date, datedOnly])
+  }, [date])
 
   useEffect(() => {
     load()
@@ -83,13 +86,8 @@ export function useReminders(dateISO, { datedOnly = false } = {}) {
     if (error) console.error('today_reminders complete', error)
   }, [])
 
-  const { dated, undated } = useMemo(() => {
-    const sorted = rows.slice().sort(compare)
-    return {
-      dated: sorted.filter((r) => r.dueDate),
-      undated: sorted.filter((r) => !r.dueDate),
-    }
-  }, [rows])
+  // Everything here is dated by construction now, so there is one list.
+  const sorted = useMemo(() => rows.slice().sort(compare), [rows])
 
-  return { reminders: rows, dated, undated, complete, refresh: load, loading, error }
+  return { reminders: sorted, complete, refresh: load, loading, error }
 }

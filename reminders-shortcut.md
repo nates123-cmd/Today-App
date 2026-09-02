@@ -57,13 +57,36 @@ broken by the pyexpat mismatch (see `project_macos_python_env`). The signer
 rejects a `.plist` extension and accepts `.wflow`; the "Unrecognized attribute
 string flag" lines it prints are harmless ObjC noise, check the exit code.
 
-## Two things to know
+## Run it on the PHONE, not the Mac
 
-**Grant Reminders access by running it once from the Shortcuts app.** Running it
-from the command line (`shortcuts run …`) silently returns zero reminders — the
-CLI runner can't show the Reminders permission prompt, so Find Reminders comes
-back empty and nothing is posted. Press ▶ in the app once, allow access, and it
-works from then on (including from automations).
+**This Mac's Reminders is empty as far as Shortcuts is concerned.** A probe
+shortcut (Find Reminders → Count → POST the count) posted **0**, which proves
+the shortcut mechanics work end to end and that Find Reminders simply has
+nothing to return here. The reminders live on the iPhone.
+
+Shortcuts sync over iCloud, so "Push Reminders to Today" is already on the
+phone — run it there. That was always the intended home for it (the 5:30am
+automation runs on the phone), the Mac was only ever a test bench.
+
+Also note: running from the command line (`shortcuts run …`) can't show the
+Reminders permission prompt, so it hangs or silently yields nothing. Use the ▶
+button in the app.
+
+## Only today and tomorrow
+
+The strip shows reminders **dated for the day being displayed** — today on the
+Today surface, tomorrow on the Tomorrow surface. Nothing else.
+
+- **Undated reminders never reach the table.** The ingest drops them. A
+  "someday, renew the passport" item is a list entry, not part of a day plan.
+- **Completed reminders are dropped too**, so a long Reminders history can't
+  pollute the table even though Find Reminders returns everything.
+
+Reminders dated further out are stored but simply not shown; the app queries one
+exact day. If that ever needs tightening to a true two-day pull, the Shortcut
+would have to compute the local dates and send them as a range — deliberately
+avoided for now, since the visible result is identical and date maths in
+Shortcuts is where the bugs live.
 
 **"Find Reminders" has no filter, on purpose.** A filter template is the most
 fragile part of the plist format, so the generated Shortcut omits it and the
