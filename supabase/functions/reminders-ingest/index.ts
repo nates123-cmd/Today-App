@@ -110,6 +110,12 @@ function truthy(v: unknown): boolean {
 function toRow(r: Record<string, unknown>, fallbackList?: unknown) {
   const title = String(r.title ?? r.name ?? "").trim();
   if (!title) return null; // a reminder with no text is not worth a row
+  // Drop completed reminders rather than storing them. The Shortcut's "Find
+  // Reminders" returns every reminder unless a filter is added, and a long
+  // Reminders history is mostly completed items — none of which belong in a
+  // day plan. Filtering here means the table stays clean even if the Shortcut
+  // sends everything.
+  if (truthy(r.completed ?? r.isCompleted)) return null;
   const rawDue = r.due ?? r.dueDate ?? r.due_date ?? null;
   const list = r.list ?? r.listName ?? r.list_name ?? fallbackList ?? null;
   const priority = Number(r.priority);

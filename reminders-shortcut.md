@@ -3,11 +3,11 @@
 Today shows your Reminders as an **errands strip** in the day plan — beside the
 Course+ work, never mixed into it. Course+ is the source of truth for project
 work and runs a pull method; folding a Reminders list into it would compete with
-the Now lane, so reminders stay in their own lane and never get auto-scheduled
+the Now lane, so errands stay in their own lane and never get auto-scheduled
 into deep-work blocks.
 
-Reminders live on your phone, so an iOS Shortcut bridges them across, exactly
-like the calendar one.
+The Shortcut is **already built** — see below. Regenerate it with
+`tools/build-reminders-shortcut.py` if it ever needs changing.
 
 ## Why an Edge Function (same story as the calendar)
 
@@ -15,7 +15,7 @@ like the calendar one.
 authenticates with the **anon key**, whose `auth.uid()` is null, so a direct
 REST write to `/rest/v1/today_reminders` passes silently and lands nothing. The
 **`reminders-ingest`** function does the write with the service role and stamps
-your user id.
+the owner id.
 
 Base URL:
 
@@ -23,64 +23,77 @@ Base URL:
 https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/reminders-ingest
 ```
 
-Both `apikey` and `Authorization: Bearer …` carry the anon key (it is a signed
-JWT, which is what the gateway's `verify_jwt` checks — the publishable `sb_…`
-key will NOT work). Same headers the calendar Shortcut already sends.
+Both `apikey` and `Authorization: Bearer …` carry the anon key (a signed JWT,
+which is what the gateway's `verify_jwt` checks — the publishable `sb_…` key
+will NOT work).
 
-## Build the Shortcut (one list, one HTTP call)
+## The Shortcut
 
-Name it something like **"Push Reminders to Today"**.
+Named **"Push Reminders to Today"**. Five actions:
 
-1. **Find Reminders** — `Find Reminders where Is Completed is No`. Add
-   `List is <your list>` if you only want one list. (Do the whole thing per
-   list; the function replaces one list at a time.)
+1. **Get Contents of URL** — `DELETE …/reminders-ingest?all=1`
+2. **Find Reminders**
+3. **Repeat with Each**
+4. **Get Contents of URL** — `POST …/reminders-ingest`, JSON body:
+   `id` / `title` / `due` / `notes` / `list` / `completed`, each a **Repeat
+   Item** property
+5. **End Repeat**
 
-2. **Repeat with Each** over the result, building a dictionary per reminder:
+It clears the server copy first, then re-posts what the phone currently holds —
+so a reminder completed or deleted on the phone disappears from Today on the
+next run.
 
-   | Key | Value |
-   |---|---|
-   | `id` | Repeat Item → **Identifier** |
-   | `title` | Repeat Item → **Name** |
-   | `due` | Repeat Item → **Due Date**, through *Format Date* |
-   | `notes` | Repeat Item → **Notes** (optional) |
-   | `priority` | Repeat Item → **Priority** (optional) |
+### Regenerating
 
-   Add each dictionary to a variable **Items** (*Add to Variable*).
+```bash
+/usr/bin/python3 tools/build-reminders-shortcut.py out.plist .env
+cp out.plist out.wflow                 # the signer keys off the extension
+shortcuts sign -m anyone -i out.wflow -o "Push Reminders to Today.shortcut"
+open "Push Reminders to Today.shortcut"
+```
 
-3. **Get Contents of URL** — Method `POST`, URL the base above, headers as
-   above, Request Body **JSON**:
+Use `/usr/bin/python3`, **not** the Homebrew one — Homebrew's `plistlib` is
+broken by the pyexpat mismatch (see `project_macos_python_env`). The signer
+rejects a `.plist` extension and accepts `.wflow`; the "Unrecognized attribute
+string flag" lines it prints are harmless ObjC noise, check the exit code.
 
-   ```json
-   { "list": "<your list name>", "reminders": "[Items]" }
-   ```
+## Two things to know
 
-That's it. One request per run.
+**Grant Reminders access by running it once from the Shortcuts app.** Running it
+from the command line (`shortcuts run …`) silently returns zero reminders — the
+CLI runner can't show the Reminders permission prompt, so Find Reminders comes
+back empty and nothing is posted. Press ▶ in the app once, allow access, and it
+works from then on (including from automations).
 
-### Date format
+**"Find Reminders" has no filter, on purpose.** A filter template is the most
+fragile part of the plist format, so the generated Shortcut omits it and the
+edge function drops completed reminders instead — the table stays clean either
+way. If your Reminders history is long enough that the run feels slow, open the
+Shortcut and use **+ Add Filter → Is Completed → is → No**. One dropdown in the
+editor, far safer than generating it.
 
-Any of these work — the function reads the date and the wall-clock time out of
-whatever Format Date produces:
+## Re-running is safe
 
-- `2026-09-03` (no time — shows as undated-on-that-day)
-- `9/3/2026, 2:30 PM` ← the Shortcuts default, fine as-is
+Each reminder carries Apple's stable **Identifier**, and the function upserts on
+`(user_id, source, source_id)` — re-running updates in place instead of
+duplicating. The calendar ingest piled up six copies of the same standup for
+weeks before that was fixed; this one is built not to.
+
+## Date format
+
+Whatever Format Date produces is fine — the function reads the date and the
+wall-clock time out of any of these:
+
+- `2026-09-03` (no time)
+- `9/3/2026, 2:30 PM` ← Shortcuts' default
 - `2026-09-03 14:30`
 - `2026-09-03T14:30:00-04:00`
 
 **Times are stored as wall clock, on purpose.** "Call the plumber at 2:30" means
 2:30 where you are; the function has no idea what timezone your phone was in, so
-it keeps the digits you wrote rather than guessing an absolute instant. (Storing
-it as a timestamp is what made a 2:30pm reminder read as 10:30am in testing.)
-
-## Re-running is safe
-
-Each reminder carries Apple's stable **Identifier**, and the function upserts on
-`(user_id, source, source_id)` — so re-running updates in place instead of
-duplicating. The calendar ingest piled up six copies of the same standup for
-weeks before that was fixed; this one is built not to.
-
-A batch POST with a `list` **replaces that whole list**: it clears the list
-first, then inserts what the phone just read. So a reminder you completed or
-deleted on the phone disappears from Today on the next run. Always send `id`.
+it keeps the digits you wrote rather than guessing an instant. Storing it as a
+timestamp is what made a 2:30pm reminder read as 10:30am in testing. `due_at` is
+set only when the input carries an explicit offset.
 
 ## Automation
 
@@ -110,8 +123,6 @@ set -a && source .env && set +a
 B="https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/reminders-ingest"
 A=(-H "apikey: $VITE_SUPABASE_ANON_KEY" -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" -H "Content-Type: application/json")
 
-curl -X POST "$B" "${A[@]}" -d '{"list":"__test__","reminders":[
-  {"id":"t1","title":"call the plumber","due":"9/3/2026, 2:30 PM"}
-]}'
+curl -X POST "$B" "${A[@]}" -d '{"id":"t1","title":"call the plumber","due":"9/3/2026, 2:30 PM","list":"__test__"}'
 curl -X DELETE "$B?list=__test__" "${A[@]}"   # clean up
 ```
