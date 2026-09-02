@@ -20,7 +20,6 @@ import { usePillars } from './usePillars'
 import { usePlacedBlocks } from './usePlacedBlocks'
 import { daysFromToday } from './surfaceActions'
 import { proposeSchedule, flattenPillars } from './proposeSchedule'
-import { eventKey } from './dismissedEvents'
 
 const WINDOW = { first: 8, last: 18 }
 const DENY_KEY = (dateISO) => `today.denied.${dateISO}`
@@ -34,13 +33,19 @@ function readDenied(dateISO) {
   }
 }
 
-// `hiddenKeys` (a Set of dismissedEvents `eventKey`s) removes dismissed calendar
-// events from the obstacle set, so deleting a meeting from the agenda actually
-// frees that time for the generator to fill — otherwise the day would still be
-// planned around a meeting the user just said isn't happening.
-export function useProposedSchedule(dateISO, hiddenKeys) {
+// Dismissed events are already gone from `placed` (usePlacedBlocks filters at
+// the read), so a deleted meeting frees its time for the generator with no
+// extra work here.
+export function useProposedSchedule(dateISO) {
   const { pillars, loading: pillarsLoading } = usePillars()
-  const { placed, setPlaced, loading: placedLoading } = usePlacedBlocks(dateISO)
+  const {
+    placed,
+    setPlaced,
+    dismiss,
+    restoreDismissed,
+    dismissedCount,
+    loading: placedLoading,
+  } = usePlacedBlocks(dateISO)
 
   const { tasks, projectsById } = useMemo(() => flattenPillars(pillars), [pillars])
 
@@ -70,15 +75,8 @@ export function useProposedSchedule(dateISO, hiddenKeys) {
     return (iso) => daysFromToday(iso, ref)
   }, [dateISO])
 
-  // Everything that is not a proposal is an immovable obstacle (decisions Q7) —
-  // minus anything the user dismissed from the agenda.
-  const obstacles = useMemo(
-    () =>
-      placed.filter(
-        (b) => b.source !== 'today_proposed' && !(hiddenKeys?.has(eventKey(b)) ?? false)
-      ),
-    [placed, hiddenKeys]
-  )
+  // Everything that is not a proposal is an immovable obstacle (decisions Q7).
+  const obstacles = useMemo(() => placed.filter((b) => b.source !== 'today_proposed'), [placed])
   const proposed = useMemo(() => placed.filter((b) => b.source === 'today_proposed'), [placed])
 
   // Day-before preview uses neutral readiness (tomorrow's Oura row doesn't exist
@@ -145,6 +143,9 @@ export function useProposedSchedule(dateISO, hiddenKeys) {
     pillars,
     placed,
     setPlaced,
+    dismiss,
+    restoreDismissed,
+    dismissedCount,
     obstacles,
     proposed,
     denied,

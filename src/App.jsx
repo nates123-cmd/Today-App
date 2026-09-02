@@ -7,13 +7,10 @@ import { Live } from './surfaces/Live.jsx'
 import { PillarBlockView } from './surfaces/PillarBlockView.jsx'
 import { DayOverlay } from './surfaces/DayOverlay.jsx'
 import { usePlacedBlocks } from './lib/usePlacedBlocks.js'
+import { todayISO, isPlanningTomorrow } from './lib/day.js'
 
 const TODAY_KEY = 'today.lastOpened'
 const PAGE_KEY = 'today.lastPage'
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 export default function App() {
   // Capture session-stable values once. Recomputing these on every render
@@ -36,10 +33,14 @@ export default function App() {
     return candidate < 0 ? pages.indexOf('morning') : candidate
   })
 
+  // After the 7pm handover today's plan is spent, so the app opens straight on
+  // tomorrow rather than on whichever of today's surfaces you last used. The
+  // overlay is dismissable — this changes where you LAND, it doesn't lock today
+  // away.
   const [activePage, setActivePage] = useState(initialIdx)
-  const { placed, setPlaced } = usePlacedBlocks()
+  const { placed, setPlaced, dismiss } = usePlacedBlocks()
   const [remainingMinsByPillar, setRemainingMinsByPillar] = useState({})
-  const [dayOverlay, setDayOverlay] = useState(null)
+  const [dayOverlay, setDayOverlay] = useState(() => (isPlanningTomorrow() ? 'tomorrow' : null))
   const [openBlock, setOpenBlock] = useState(null)
 
   const pagerRef = useRef(null)
@@ -97,6 +98,9 @@ export default function App() {
 
   const currentPage = pages[activePage]
   const showDaySpine = currentPage !== 'welcome'
+  // Recomputed per render (not captured once) so the spine flips at 7pm even
+  // if the app has been sitting open since the afternoon.
+  const planningTomorrow = isPlanningTomorrow()
 
   return (
     <div className="stage">
@@ -111,6 +115,7 @@ export default function App() {
             placed={placed}
             onPushNext={() => goToPage(pages.indexOf('scheduling'))}
             onRemainingMinsChange={setRemainingMinsByPillar}
+            onRemoveEvent={dismiss}
           />
           <Scheduling
             placed={placed}
@@ -135,12 +140,16 @@ export default function App() {
             >
               <span>yesterday</span>
             </button>
-            <button type="button" className="day-spine-btn current">
+            <button
+              type="button"
+              className={`day-spine-btn ${planningTomorrow ? '' : 'current'}`}
+              onClick={() => setDayOverlay(null)}
+            >
               <span>today</span>
             </button>
             <button
               type="button"
-              className="day-spine-btn"
+              className={`day-spine-btn ${planningTomorrow ? 'current' : ''}`}
               onClick={() => setDayOverlay('tomorrow')}
             >
               <span>tomorrow</span>

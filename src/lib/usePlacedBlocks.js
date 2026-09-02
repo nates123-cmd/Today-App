@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './supabase'
 import { useVisibilityKey } from './useVisibilityKey'
+import { todayISO } from './day'
+import { useDismissedEvents } from './useDismissedEvents'
+import { filterDismissed, countDismissed } from './dismissedEvents'
 
 const TABLE = 'placed_blocks'
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
 
 // DB row → UI block. UI omits the date (today-only for V1) and renames
 // duration_minutes → duration.
@@ -73,6 +72,13 @@ function blockEquals(a, b) {
 
 // `dateArg` (ISO yyyy-mm-dd) lets the Tomorrow proposal flow operate on a
 // different day's blocks; defaults to today for the live surfaces.
+// Dismissal is applied HERE, at the single read point, rather than per-surface.
+// Triage used to keep its own `today.dismissedMeetings` list and filter only its
+// own calendar strip, so an event removed there stayed on the Scheduling page —
+// and because that store keyed on `sourceId || id` while real ical rows carry a
+// NULL source_id, it actually keyed on the row UUID, which the sync regenerates
+// every run. The dismissal silently came back. Filtering once, here, means every
+// consumer (Triage, Scheduling, Live, Welcome, Tomorrow) agrees by construction.
 export function usePlacedBlocks(dateArg) {
   const [placed, setPlacedLocal] = useState([])
   const [loading, setLoading] = useState(true)
@@ -158,5 +164,22 @@ export function usePlacedBlocks(dateArg) {
     [date]
   )
 
-  return { placed, setPlaced, loading, error }
+  const { dismissed, dismiss, restoreAll } = useDismissedEvents(date)
+
+  // What the app shows: stored rows minus anything dismissed for this day.
+  const visible = useMemo(() => filterDismissed(placed, dismissed), [placed, dismissed])
+  const dismissedCount = useMemo(() => countDismissed(placed, dismissed), [placed, dismissed])
+
+  return {
+    placed: visible,
+    // Pre-dismissal rows. Only for surfaces that need to reason about what was
+    // hidden; `placed` is what should normally be rendered.
+    allPlaced: placed,
+    setPlaced,
+    dismiss,
+    restoreDismissed: restoreAll,
+    dismissedCount,
+    loading,
+    error,
+  }
 }

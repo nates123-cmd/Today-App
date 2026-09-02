@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { useVisibilityKey } from './useVisibilityKey'
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayISO } from './day'
 
 // Live challenges from Ink, read through the shared `challenges_today` view —
 // the same contract Ink, the reMarkable daily page and Break read, so day

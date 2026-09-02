@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { IconCheck } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
 import { surfaceActions } from '../lib/surfaceActions.js'
+import { isoDate } from '../lib/day.js'
 
 const ReactDOM = { createPortal }
 
@@ -174,18 +175,12 @@ const PROJECT_STATUSES = [
   { id: 'dropped',  label: 'dropped'      },
 ];
 
-// Dismissed (manually removed) calendar events. Persisted so the next iCal
-// sync — which re-upserts the meeting — doesn't bring a removed event back.
-// Keyed by the stable iCal source id (falls back to the row id).
-const DISMISSED_MEETINGS_KEY = 'today.dismissedMeetings';
-function calEventKey(e) { return e.sourceId || e.id; }
-function getDismissedMeetings() {
-  try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_MEETINGS_KEY) || '[]')); }
-  catch { return new Set(); }
-}
-function setDismissedMeetings(set) {
-  localStorage.setItem(DISMISSED_MEETINGS_KEY, JSON.stringify([...set]));
-}
+// Calendar-event dismissal now lives in `usePlacedBlocks` so every surface
+// agrees (this file used to keep its own list and filter only its own strip,
+// which is why an event removed here stayed on the Scheduling page). It also
+// keyed on `sourceId || id`, but real ical rows have a NULL source_id, so it
+// keyed on the row UUID — which the sync regenerates every run, quietly
+// resurrecting the event. `onRemoveEvent` is passed down from App.
 
 function CalEventRow({ event, hasPrep, onRemove }) {
   const [menu, setMenu] = React.useState(false);
@@ -1068,7 +1063,7 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
   // Open tasks are noise when they're scheduled for a future day — only
   // show ones with no do_date (always-available) or do_date = today. Tasks
   // scheduled for later live in Course until their day arrives.
-  const todayISO = new Date().toISOString().slice(0, 10);
+  const todayISO = isoDate();
   const pillarOpenTasks = (pillar.openTasks || []).filter(
     (t) => !t.doDate || t.doDate === todayISO
   );
@@ -1377,6 +1372,8 @@ function placedToCalEvent(b) {
   return {
     id: b.id,
     sourceId: b.sourceId ?? null,
+    // Carried so the row keeps the identity dismissal keys on (hour + title).
+    hour: b.hour,
     start: fmt(b.hour),
     end: fmt(b.hour + b.duration / 60),
     title: b.title,
@@ -1384,17 +1381,14 @@ function placedToCalEvent(b) {
   }
 }
 
-export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainingMinsChange }) {
-  const [dismissedMeetings, setDismissedMeetings_] = React.useState(() => getDismissedMeetings())
-  const removeCalEvent = React.useCallback((ev) => {
-    const key = calEventKey(ev)
-    setDismissedMeetings_((prev) => {
-      const next = new Set(prev)
-      next.add(key)
-      setDismissedMeetings(next)
-      return next
-    })
-  }, [])
+export function Triage({
+  placed,
+  initialProgress = 'mid',
+  onPushNext,
+  onRemainingMinsChange,
+  onRemoveEvent,
+}) {
+  const removeCalEvent = React.useCallback((ev) => onRemoveEvent?.(ev), [onRemoveEvent])
   const calEvents = React.useMemo(
     () => {
       // Safeguard against duplicate meeting rows the iCal sync can pile up in
@@ -1406,7 +1400,6 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
         .filter((b) => b.type === 'meeting')
         .sort((a, b) => a.hour - b.hour)
         .map(placedToCalEvent)
-        .filter((e) => !dismissedMeetings.has(calEventKey(e)))
         .filter((e) => {
           const k = `${e.start}|${e.title}`
           if (seen.has(k)) return false
@@ -1414,7 +1407,7 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
           return true
         })
     },
-    [placed, dismissedMeetings]
+    [placed]
   )
   // Existing prep blocks keyed by the meeting they're for (source_id).
   // Used to (a) tell CalEventRow whether prep already exists and (b) render
@@ -1644,7 +1637,7 @@ export function Triage({ placed, initialProgress = 'mid', onPushNext, onRemainin
   // For each toast: capture pre-state per task so undo can replay it.
   const tomorrowISO = () => {
     const t = new Date(); t.setDate(t.getDate() + 1);
-    return t.toISOString().slice(0, 10);
+    return isoDate(t);
   };
   const patchForKind = (kind) => {
     if (kind === 'pushed')  return { do_date: tomorrowISO() };

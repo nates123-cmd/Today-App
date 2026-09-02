@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { useVisibilityKey } from './useVisibilityKey'
-
-function todayISO() {
-  return new Date().toISOString().slice(0, 10)
-}
+import { todayISO } from './day'
 
 // Read + write habit completion for a given date. Defaults to today; pass an
 // ISO date (e.g. yesterday) for backfill flows.

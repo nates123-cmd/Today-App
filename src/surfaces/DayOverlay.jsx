@@ -9,6 +9,7 @@ import { YESTERDAY, TOMORROW } from '../data.js'
 import { useDailyHighlight } from '../lib/useDailyHighlight.js'
 import { useHabits } from '../lib/useHabits.js'
 import { TomorrowPlan } from './TomorrowPlan.jsx'
+import { addDays, isoDate } from '../lib/day.js'
 
 const PILLAR_NAMES = { arrow: 'Arrow', sunny: 'Sunny', life: 'Life', sidegig: 'Side gig', open: 'Open Tasks' }
 
@@ -23,12 +24,7 @@ function dayWordFor(date) {
   return date.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase()
 }
 function yesterdayDateObj() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d
-}
-function isoDate(d) {
-  return d.toISOString().slice(0, 10)
+  return addDays(-1)
 }
 
 export function DayOverlay({ kind, onClose }) {

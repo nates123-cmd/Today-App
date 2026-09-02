@@ -14,8 +14,8 @@ import { Scheduling } from './Scheduling.jsx'
 import { useProposedSchedule } from '../lib/useProposedSchedule.js'
 import { buildBriefing, pillarTimeBank } from '../lib/tomorrowBriefing.js'
 import { freeMinutes } from '../lib/proposeSchedule.js'
-import { useDismissedEvents } from '../lib/useDismissedEvents.js'
-import { filterDismissed, countDismissed, isReingested } from '../lib/dismissedEvents.js'
+import { isReingested } from '../lib/dismissedEvents.js'
+import { addDays, isoDate } from '../lib/day.js'
 
 const PILLAR_NAMES = {
   arrow: 'Arrow',
@@ -26,14 +26,7 @@ const PILLAR_NAMES = {
 }
 const WINDOW = { first: 8, last: 18 }
 
-function tomorrowDate() {
-  const d = new Date()
-  d.setDate(d.getDate() + 1)
-  return d
-}
-function isoOf(d) {
-  return d.toISOString().slice(0, 10)
-}
+
 
 // decimal hour -> "9:30a"
 function fmtTime(h) {
@@ -70,9 +63,8 @@ function SectionLabel({ n, children, right }) {
 }
 
 export function TomorrowPlan() {
-  const date = React.useMemo(() => tomorrowDate(), [])
-  const dateISO = React.useMemo(() => isoOf(date), [date])
-  const { dismissed, dismiss, restoreAll } = useDismissedEvents(dateISO)
+  const date = React.useMemo(() => addDays(1), [])
+  const dateISO = React.useMemo(() => isoDate(date), [date])
   const {
     pillars,
     placed,
@@ -87,7 +79,10 @@ export function TomorrowPlan() {
     denyOne,
     clearDenied,
     loading,
-  } = useProposedSchedule(dateISO, dismissed)
+    dismiss,
+    restoreDismissed,
+    dismissedCount,
+  } = useProposedSchedule(dateISO)
 
   const [view, setView] = React.useState('brief') // 'brief' | 'grid'
 
@@ -104,8 +99,6 @@ export function TomorrowPlan() {
     [obstacles]
   )
 
-  const hiddenCount = React.useMemo(() => countDismissed(placed, dismissed), [placed, dismissed])
-
   // Removing an event from the day. An ical row is NOT ours to delete — the
   // Shortcut re-ingests the whole day on its next run and would bring it
   // straight back — so those are dismissed (hidden durably) instead. Blocks
@@ -118,8 +111,7 @@ export function TomorrowPlan() {
     [dismiss, setPlaced]
   )
 
-  // The grid must agree with the agenda about what's on the day.
-  const visiblePlaced = React.useMemo(() => filterDismissed(placed, dismissed), [placed, dismissed])
+
 
   const free = React.useMemo(() => freeMinutes(WINDOW, obstacles), [obstacles])
   const bookedMins = React.useMemo(
@@ -157,7 +149,7 @@ export function TomorrowPlan() {
         </div>
         <Scheduling
           embedded
-          placed={visiblePlaced}
+          placed={placed}
           setPlaced={setPlaced}
           remainingMinsByPillar={timeBank}
           title="Tomorrow"
@@ -213,14 +205,14 @@ export function TomorrowPlan() {
         <div className="tmrw-hint">
           {loading
             ? 'loading…'
-            : hiddenCount
+            : dismissedCount
               ? 'every event hidden — nothing fixed on the day.'
               : "nothing on the calendar yet — tomorrow's events sync in overnight."}
         </div>
       )}
-      {hiddenCount > 0 && (
-        <button className="tmrw-undeny" onClick={restoreAll}>
-          {hiddenCount} hidden · restore
+      {dismissedCount > 0 && (
+        <button className="tmrw-undeny" onClick={restoreDismissed}>
+          {dismissedCount} hidden · restore
         </button>
       )}
 

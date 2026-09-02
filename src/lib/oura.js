@@ -11,6 +11,7 @@
 // `x-oura-pat` header to our own proxy → api.ouraring.com.
 
 import { supabase } from './supabase'
+import { isoDate } from './day'
 
 const PAT_KEY = 'today.ouraPat'
 const PROXY_SLUG = 'smooth-processor' // edge fn name = oura-proxy
@@ -38,7 +39,7 @@ export function hasOuraPat() {
 }
 
 function ymd(d) {
-  return d.toISOString().slice(0, 10)
+  return isoDate(d)
 }
 
 // Fetch one Oura collection through our proxy. Returns the `data` array.

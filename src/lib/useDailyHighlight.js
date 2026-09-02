@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { isoDate } from './day'
 
 // Daily highlights live in the shared `entries` table (Ink's catch-all),
 // keyed by primary_type='day' + source_surface='today_screen'. composed_at
@@ -16,7 +17,7 @@ function startOfDayISO(dateISO) {
 function startOfNextDayISO(dateISO) {
   const d = new Date(dateISO)
   d.setUTCDate(d.getUTCDate() + 1)
-  return `${d.toISOString().slice(0, 10)}T00:00:00.000Z`
+  return `${isoDate(d)}T00:00:00.000Z`
 }
 
 export function useDailyHighlight(dateISO) {
