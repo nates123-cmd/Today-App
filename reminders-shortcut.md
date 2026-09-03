@@ -77,10 +77,15 @@ button in the app.
 The strip shows reminders **dated for the day being displayed** — today on the
 Today surface, tomorrow on the Tomorrow surface. Nothing else.
 
-- **Undated reminders never reach the table.** The ingest drops them. A
-  "someday, renew the passport" item is a list entry, not part of a day plan.
-- **Completed reminders are dropped too**, so a long Reminders history can't
-  pollute the table even though Find Reminders returns everything.
+- **Undated reminders are stored but never shown.** The app queries one exact
+  day, and that is what enforces the rule.
+- **Completed reminders are dropped at ingest**, so a long Reminders history
+  can't pollute the table even though Find Reminders returns everything.
+
+They were briefly dropped at ingest too, and that was a mistake worth
+recording: an edge function silently discarding input makes an empty result
+impossible to diagnose — you cannot tell "the Shortcut found nothing" from "the
+function threw it all away". Filter where it's visible.
 
 Reminders dated further out are stored but simply not shown; the app queries one
 exact day. If that ever needs tightening to a true two-day pull, the Shortcut

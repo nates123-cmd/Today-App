@@ -117,11 +117,13 @@ function toRow(r: Record<string, unknown>, fallbackList?: unknown) {
   // sends everything.
   if (truthy(r.completed ?? r.isCompleted)) return null;
   const rawDue = r.due ?? r.dueDate ?? r.due_date ?? null;
-  // Today only wants reminders that are actually SCHEDULED. An undated reminder
-  // ("someday, renew the passport") is a list item, not part of a day plan, and
-  // Reminders is full of them — so they never enter the table. The app then
-  // shows exactly the day it is displaying.
-  if (!isoDate(rawDue)) return null;
+  // Undated reminders are STORED but never shown — the app queries one exact
+  // day, which is what actually enforces "today and tomorrow only".
+  //
+  // They were briefly dropped here instead, and that was a mistake: the edge
+  // silently discarding input makes an empty result impossible to diagnose
+  // ("did the Shortcut find nothing, or did the function throw it all away?").
+  // Filter where it's visible, not where it's invisible.
   const list = r.list ?? r.listName ?? r.list_name ?? fallbackList ?? null;
   const priority = Number(r.priority);
   return {
