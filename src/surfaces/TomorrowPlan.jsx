@@ -39,9 +39,12 @@ function fmtTime(h) {
 
 // "14:30" -> "2:30p". The stored value is wall clock as written on the phone,
 // so this is pure formatting — no timezone conversion, deliberately.
+// Returns '' for midnight: Apple stores an ALL-DAY reminder as 00:00, and
+// rendering those as "12:00a" would put a fake time on most of the list.
 function fmtClock(hhmm) {
   const m = /^(\d{2}):(\d{2})$/.exec(hhmm || '')
   if (!m) return hhmm || ''
+  if (m[1] === '00' && m[2] === '00') return ''
   const h = parseInt(m[1], 10)
   const h12 = h % 12 === 0 ? 12 : h % 12
   return `${h12}:${m[2]}${h < 12 ? 'a' : 'p'}`
@@ -280,7 +283,7 @@ export function TomorrowPlan() {
                 <div className="tmrw-rem-title">{r.title}</div>
                 <div className="tmrw-rem-meta">
                   {r.list || 'reminders'}
-                  {r.dueTime ? ` · ${fmtClock(r.dueTime)}` : ''}
+                  {fmtClock(r.dueTime) ? ` · ${fmtClock(r.dueTime)}` : ''}
                 </div>
               </div>
             </div>
