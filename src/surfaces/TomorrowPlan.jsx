@@ -15,7 +15,7 @@ import { useProposedSchedule } from '../lib/useProposedSchedule.js'
 import { buildBriefing, pillarTimeBank } from '../lib/tomorrowBriefing.js'
 import { freeMinutes } from '../lib/proposeSchedule.js'
 import { isReingested } from '../lib/dismissedEvents.js'
-import { useReminders } from '../lib/useReminders.js'
+import { useReminders, dueLabelFor } from '../lib/useReminders.js'
 import { addDays, isoDate } from '../lib/day.js'
 
 const PILLAR_NAMES = {
@@ -268,7 +268,7 @@ export function TomorrowPlan() {
       {/* ─── reminders ─── */}
       {reminders.length > 0 && (
         <>
-          <SectionLabel n="—" right="from reminders">
+          <SectionLabel n="—" right="overdue · today · tomorrow">
             errands
           </SectionLabel>
           {reminders.map((r) => (
@@ -282,7 +282,7 @@ export function TomorrowPlan() {
               <div className="tmrw-rem-body">
                 <div className="tmrw-rem-title">{r.title}</div>
                 <div className="tmrw-rem-meta">
-                  {r.list || 'reminders'}
+                  {dueLabelFor(r.dueDate) ?? r.list ?? 'reminders'}
                   {fmtClock(r.dueTime) ? ` · ${fmtClock(r.dueTime)}` : ''}
                 </div>
               </div>

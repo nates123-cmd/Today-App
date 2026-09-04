@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
 import { useVisibilityKey } from './useVisibilityKey'
 import { todayISO } from './day'
+import { daysFromToday } from './surfaceActions'
 
 const TABLE = 'today_reminders'
 
@@ -32,20 +33,40 @@ function fromRow(row) {
   }
 }
 
-// Apple priority: 1 high, 5 medium, 9 low, 0/null none. Sort high→low, then by
-// time of day, then title, so the order is stable across renders.
+// Oldest first, so the overdue ones lead. Then time of day, then Apple's
+// priority (1 high, 5 medium, 9 low, 0/null none), then title for a stable
+// order across renders.
 function compare(a, b) {
+  const d = (r) => r.dueDate ?? '9999-12-31'
+  if (d(a) !== d(b)) return d(a).localeCompare(d(b))
+  const t = (r) => (r.dueTime && r.dueTime !== '00:00' ? r.dueTime : '99:99')
+  if (t(a) !== t(b)) return t(a).localeCompare(t(b))
   const p = (r) => (r.priority && r.priority > 0 ? r.priority : 99)
   if (p(a) !== p(b)) return p(a) - p(b)
-  const t = (r) => r.dueTime ?? '99:99'
-  if (t(a) !== t(b)) return t(a).localeCompare(t(b))
   return (a.title || '').localeCompare(b.title || '')
 }
 
-// `dateISO` selects the day, and ONLY that day. Undated reminders are
-// deliberately excluded: Nate wants the strip to be what's marked for today and
-// tomorrow, not a dump of the whole Reminders app. (Undated ones don't even
-// reach the table — the ingest drops them.)
+// "overdue" / "today" / "tomorrow" relative to the REAL current day, not to the
+// day being planned — an overdue item must still read as overdue while you are
+// planning tomorrow.
+export function dueLabelFor(dueDate, now = new Date()) {
+  const d = daysFromToday(dueDate, now)
+  if (d == null) return null
+  if (d < 0) return d === -1 ? 'overdue by a day' : `overdue by ${-d} days`
+  if (d === 0) return 'today'
+  if (d === 1) return 'tomorrow'
+  return null
+}
+
+// Returns every open reminder due ON OR BEFORE `dateISO`.
+//
+// Called with tomorrow's date (the day being planned) that is exactly the set
+// Nate asked for: **overdue + dated today + dated tomorrow**. Overdue matters —
+// Apple's own Today list folds it in, and six of his were sitting invisible
+// when the strip showed one exact day.
+//
+// Undated reminders are excluded. They reach the table (the ingest stores
+// them) but a reminder with no date isn't part of a day plan.
 export function useReminders(dateISO) {
   const date = dateISO ?? todayISO()
   const [rows, setRows] = useState([])
@@ -63,7 +84,8 @@ export function useReminders(dateISO) {
       .from(TABLE)
       .select('*')
       .eq('completed', false)
-      .eq('due_date', date)
+      .not('due_date', 'is', null)
+      .lte('due_date', date)
     if (error) {
       setError(error.message)
       setRows([])
