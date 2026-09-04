@@ -1,135 +1,91 @@
 # Apple Reminders → Today
 
-Today shows your Reminders as an **errands strip** in the day plan — beside the
+Today shows Reminders as an **errands strip** in the day plan — beside the
 Course+ work, never mixed into it. Course+ is the source of truth for project
 work and runs a pull method; folding a Reminders list into it would compete with
 the Now lane, so errands stay in their own lane and never get auto-scheduled
 into deep-work blocks.
 
-The Shortcut is **already built** — see below. Regenerate it with
-`tools/build-reminders-shortcut.py` if it ever needs changing.
+**What's shown:** every open reminder **due on or before the day being planned**
+— i.e. **overdue + today + tomorrow**. Overdue leads the list, oldest first.
+Undated reminders are stored but never displayed; a reminder with no date isn't
+part of a day plan.
 
-## Why an Edge Function (same story as the calendar)
+## How it gets there: `tools/push-reminders.sh` (NOT a Shortcut)
 
-`today_reminders` is under per-user RLS (`auth.uid() = user_id`). The Shortcut
-authenticates with the **anon key**, whose `auth.uid()` is null, so a direct
-REST write to `/rest/v1/today_reminders` passes silently and lands nothing. The
-**`reminders-ingest`** function does the write with the service role and stamps
-the owner id.
-
-Base URL:
-
-```
-https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/reminders-ingest
-```
-
-Both `apikey` and `Authorization: Bearer …` carry the anon key (a signed JWT,
-which is what the gateway's `verify_jwt` checks — the publishable `sb_…` key
-will NOT work).
-
-## The Shortcut
-
-Named **"Push Reminders to Today"**. Five actions:
-
-1. **Get Contents of URL** — `DELETE …/reminders-ingest?all=1`
-2. **Find Reminders**
-3. **Repeat with Each**
-4. **Get Contents of URL** — `POST …/reminders-ingest`, JSON body:
-   `id` / `title` / `due` / `notes` / `list` / `completed`, each a **Repeat
-   Item** property
-5. **End Repeat**
-
-It clears the server copy first, then re-posts what the phone currently holds —
-so a reminder completed or deleted on the phone disappears from Today on the
-next run.
-
-### Regenerating
+Run it on the Mac:
 
 ```bash
-/usr/bin/python3 tools/build-reminders-shortcut.py out.plist .env
-cp out.plist out.wflow                 # the signer keys off the extension
-shortcuts sign -m anyone -i out.wflow -o "Push Reminders to Today.shortcut"
-open "Push Reminders to Today.shortcut"
+tools/push-reminders.sh --dry-run   # counts + the next dozen dated, no writes
+tools/push-reminders.sh             # reads the library and posts one batch
 ```
 
-Use `/usr/bin/python3`, **not** the Homebrew one — Homebrew's `plistlib` is
-broken by the pyexpat mismatch (see `project_macos_python_env`). The signer
-rejects a `.plist` extension and accepts `.wflow`; the "Unrecognized attribute
-string flag" lines it prints are harmless ObjC noise, check the exit code.
+It reads Apple Reminders over AppleScript and POSTs a batch to the
+`reminders-ingest` edge function. One batch **replaces** the stored list, so
+anything completed or deleted on the phone disappears from Today on the next
+run.
 
-## Run it on the PHONE, not the Mac
+### Why not the Shortcut (this was tried properly — don't redo it)
 
-**This Mac's Reminders is empty as far as Shortcuts is concerned.** A probe
-shortcut (Find Reminders → Count → POST the count) posted **0**, which proves
-the shortcut mechanics work end to end and that Find Reminders simply has
-nothing to return here. The reminders live on the iPhone.
+A full Shortcut was generated, signed, imported and confirmed rendering
+correctly, and it still returned nothing. **Shortcuts' "Find Reminders" returns
+ZERO on both the Mac and the phone**, with and without an `Is Completed is No`
+filter, against a library holding 111 open reminders. Two probe shortcuts
+(Find → Count → POST the count) both posted `0`, while the POST path itself
+worked fine.
 
-Shortcuts sync over iCloud, so "Push Reminders to Today" is already on the
-phone — run it there. That was always the intended home for it (the 5:30am
-automation runs on the phone), the Mac was only ever a test bench.
+The cause: **Shortcuts does not appear under Privacy & Security → Reminders at
+all** — it has never requested access — and `shortcuts run` from the CLI can
+never raise the prompt, so it fails silently with exit 0 and no log line.
+osascript *does* have access (it's what the `/remind` skill uses), hence the
+script.
 
-Also note: running from the command line (`shortcuts run …`) can't show the
-Reminders permission prompt, so it hangs or silently yields nothing. Use the ▶
-button in the app.
+The generator is still in `tools/build-reminders-shortcut.py` if that permission
+is ever granted. Notes for that path: the signer rejects a `.plist` extension
+and wants `.wflow`; its "Unrecognized attribute string flag" output is harmless
+ObjC noise (check the exit code, not stderr); use `/usr/bin/python3` because
+Homebrew's plistlib is broken by a pyexpat mismatch.
 
-## Only today and tomorrow
+### AppleScript landmines (all hit for real)
 
-The strip shows reminders **dated for the day being displayed** — today on the
-Today surface, tomorrow on the Tomorrow surface. Nothing else.
+- **The live list is the `default list`**, and it is NOT reachable by name or
+  id — `every list` only ever returns `Capture`. Address it inline.
+- **`every reminder whose completed is false` times out** on this library
+  (~2,860 items). Bulk-fetch each property in one Apple Event and filter after.
+- **Reminder IDs are not fetched, on purpose.** That was a fifth Apple Event
+  across every item and bought nothing, since the batch replaces the list
+  server-side rather than upserting row by row.
+- **Dates are emitted as integer components.** AppleScript's date-to-string is
+  locale-dependent and must never be parsed.
+- Fields are separated by US (0x1f) and records by RS (0x1e), so a title with a
+  comma, quote or newline can't corrupt the stream.
 
-- **Undated reminders are stored but never shown.** The app queries one exact
-  day, and that is what enforces the rule.
-- **Completed reminders are dropped at ingest**, so a long Reminders history
-  can't pollute the table even though Find Reminders returns everything.
+## Scheduling
 
-They were briefly dropped at ingest too, and that was a mistake worth
-recording: an edge function silently discarding input makes an empty result
-impossible to diagnose — you cannot tell "the Shortcut found nothing" from "the
-function threw it all away". Filter where it's visible.
+`tools/com.nate.today-reminders.plist` runs it at 5:30am.
 
-Reminders dated further out are stored but simply not shown; the app queries one
-exact day. If that ever needs tightening to a true two-day pull, the Shortcut
-would have to compute the local dates and send them as a range — deliberately
-avoided for now, since the visible result is identical and date maths in
-Shortcuts is where the bugs live.
+```bash
+cp tools/com.nate.today-reminders.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nate.today-reminders.plist
+launchctl kickstart -k gui/$(id -u)/com.nate.today-reminders
+tail ~/Library/Logs/today-reminders.log
+```
 
-**"Find Reminders" has no filter, on purpose.** A filter template is the most
-fragile part of the plist format, so the generated Shortcut omits it and the
-edge function drops completed reminders instead — the table stays clean either
-way. If your Reminders history is long enough that the run feels slow, open the
-Shortcut and use **+ Add Filter → Is Completed → is → No**. One dropdown in the
-editor, far safer than generating it.
+**Test it after installing.** Reading Reminders needs TCC permission, and a
+launchd agent is a different process from the terminal that currently holds it —
+and a background agent cannot show a permission prompt. That is the exact trap
+that made Shortcuts return zero. If the log says `0 open reminders`, it is
+permission, not the script.
 
-## Re-running is safe
+This runs on the **Mac**, so it only fires while the Mac is awake. Same iCloud
+data as the phone.
 
-Each reminder carries Apple's stable **Identifier**, and the function upserts on
-`(user_id, source, source_id)` — re-running updates in place instead of
-duplicating. The calendar ingest piled up six copies of the same standup for
-weeks before that was fixed; this one is built not to.
+## The edge function
 
-## Date format
-
-Whatever Format Date produces is fine — the function reads the date and the
-wall-clock time out of any of these:
-
-- `2026-09-03` (no time)
-- `9/3/2026, 2:30 PM` ← Shortcuts' default
-- `2026-09-03 14:30`
-- `2026-09-03T14:30:00-04:00`
-
-**Times are stored as wall clock, on purpose.** "Call the plumber at 2:30" means
-2:30 where you are; the function has no idea what timezone your phone was in, so
-it keeps the digits you wrote rather than guessing an instant. Storing it as a
-timestamp is what made a 2:30pm reminder read as 10:30am in testing. `due_at` is
-set only when the input carries an explicit offset.
-
-## Automation
-
-- **Time of Day → ~5:30 AM**, alongside the calendar Shortcut ("Run
-  Immediately" on).
-- Optionally **When I Open Today** for a mid-day refresh.
-
-## Other shapes the function accepts
+`reminders-ingest` writes with the service role and stamps the owner id, because
+`today_reminders` is under per-user RLS (`auth.uid() = user_id`) and the caller
+authenticates with the anon key, whose `auth.uid()` is null — a direct REST
+write would pass silently and land nothing.
 
 ```
 POST { title, due?, list?, notes?, priority?, completed?, id? }   -> upsert one
@@ -138,7 +94,24 @@ DELETE ?list=<name>                                               -> clear one l
 DELETE ?all=1                                                     -> clear everything
 ```
 
-## Optional hardening
+Completed reminders are dropped at ingest. Undated ones are stored — the app is
+what filters by day. They were briefly dropped here too, and that was a mistake:
+an edge function silently discarding input makes an empty table impossible to
+diagnose ("did the source find nothing, or did the function throw it away?").
+
+### Date handling
+
+Any of these parse: `2026-09-03`, `9/3/2026, 2:30 PM`, `2026-09-03 14:30`,
+`2026-09-03T14:30:00-04:00`.
+
+**Times are stored as wall clock, on purpose.** "Call the plumber at 2:30" means
+2:30 where you are, and the function has no idea what timezone the source was
+in, so it keeps the digits. Storing it as a timestamp made a 2:30pm reminder
+read as 10:30am in testing. `due_at` is set only when the input carries an
+explicit offset. Apple stores all-day reminders as `00:00`, which the UI renders
+as no time rather than a fake "12:00a".
+
+### Optional hardening
 
 Set `REMINDERS_INGEST_SECRET` in the function's env (Dashboard → Edge Functions
 → reminders-ingest → Secrets) and send it as `x-reminders-secret`. Leave it

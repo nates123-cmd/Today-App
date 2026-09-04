@@ -30,10 +30,17 @@ BASE="https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/reminders-ingest"
 AS_TIMEOUT="${REMINDERS_TIMEOUT:-500}"
 
 # Bulk-fetch each property in ONE Apple Event; `every reminder whose completed
-# is false` times out on this library. Fields separated by US (0x1f), records by
-# RS (0x1e), so a title containing commas, quotes or newlines can't corrupt the
-# stream. Dates are emitted as integer components — AppleScript's date-to-string
-# is locale-dependent and must never be parsed.
+# is false` times out on this library.
+#
+# Reminder IDs are deliberately NOT fetched. That was a fifth Apple Event across
+# ~2,860 items — a large share of a ~4-minute run — and it bought nothing: the
+# batch POST replaces the whole list server-side rather than upserting row by
+# row, so there is no key to match on.
+#
+# Fields are separated by US (0x1f) and records by RS (0x1e), so a title
+# containing a comma, quote or newline cannot corrupt the stream. Dates are
+# emitted as integer components — AppleScript's date-to-string is
+# locale-dependent and must never be parsed.
 raw=$(osascript - "$AS_TIMEOUT" <<'AS'
 on run argv
   set tmo to (item 1 of argv) as integer
@@ -43,7 +50,6 @@ on run argv
       set cs to completed of every reminder of default list
       set ds to due date of every reminder of default list
       set ps to priority of every reminder of default list
-      set is_ to id of every reminder of default list
     end tell
   end timeout
   set US to (ASCII character 31)
@@ -58,7 +64,7 @@ on run argv
         set dtxt to ((year of dv) as string) & "-" & my pad((month of dv) as integer) & ¬
           "-" & my pad(day of dv) & " " & my pad(hours of dv) & ":" & my pad(minutes of dv)
       end if
-      set out to out & (item i of is_) & US & (item i of ns) & US & dtxt & US & ((item i of ps) as string) & RS
+      set out to out & (item i of ns) & US & dtxt & US & ((item i of ps) as string) & RS
     end if
   end repeat
   return out
@@ -75,6 +81,7 @@ _RAW="$raw" /usr/bin/python3 - "$BASE" "$VITE_SUPABASE_ANON_KEY" "$DRY" <<'PY'
 import json
 import os
 import sys
+import time
 import urllib.request
 
 base, key, dry = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
@@ -85,13 +92,13 @@ for rec in raw.split("\x1e"):
     if not rec.strip():
         continue
     parts = rec.split("\x1f")
-    if len(parts) < 4:
+    if len(parts) < 3:
         continue
-    rid, title, due, prio = parts[0], parts[1], parts[2], parts[3]
+    title, due, prio = parts[0], parts[1], parts[2]
     title = title.strip()
     if not title:
         continue
-    item = {"id": rid, "title": title, "list": "Reminders"}
+    item = {"title": title, "list": "Reminders"}
     if due:
         item["due"] = due
     try:
@@ -123,6 +130,21 @@ req = urllib.request.Request(
     },
     method="POST",
 )
-with urllib.request.urlopen(req) as r:
-    print(r.read().decode())
+
+# Retry the POST. Reading the library takes minutes, so losing the whole run to
+# one transient DNS failure (which happened) is expensive; the read is the slow
+# part and it's already done by here.
+last = None
+for attempt in range(4):
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            print(r.read().decode())
+            break
+    except Exception as exc:  # noqa: BLE001 - any network error is worth a retry
+        last = exc
+        if attempt < 3:
+            time.sleep(2 ** attempt * 3)
+else:
+    print("push failed after 4 attempts: %s" % last, file=sys.stderr)
+    raise SystemExit(1)
 PY

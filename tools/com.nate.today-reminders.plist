@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pushes Apple Reminders into Today every morning before the ritual starts.
+
+  Install:
+    cp tools/com.nate.today-reminders.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nate.today-reminders.plist
+    launchctl kickstart -k gui/$(id -u)/com.nate.today-reminders   # run it once now
+    tail ~/Library/Logs/today-reminders.log
+
+  CAVEAT worth testing on install: reading Reminders needs TCC permission, and a
+  launchd agent is a different process from the terminal that currently has it.
+  A background agent cannot show a permission prompt — the same trap that made
+  Shortcuts silently return zero. If the log shows "0 open reminders", grant the
+  agent access (System Settings → Privacy & Security → Reminders, or give
+  /bin/bash Full Disk Access) rather than assuming the script broke.
+
+  Uninstall:
+    launchctl bootout gui/$(id -u)/com.nate.today-reminders
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.nate.today-reminders</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/natestephenson/Desktop/today-app/tools/push-reminders.sh</string>
+  </array>
+
+  <!-- 5:30am, alongside the calendar Shortcut, so the data is fresh before
+       Today is opened. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>5</integer>
+    <key>Minute</key><integer>30</integer>
+  </dict>
+
+  <!-- The read takes minutes and there is no point racing login. -->
+  <key>RunAtLoad</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/natestephenson/Library/Logs/today-reminders.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/natestephenson/Library/Logs/today-reminders.log</string>
+</dict>
+</plist>
