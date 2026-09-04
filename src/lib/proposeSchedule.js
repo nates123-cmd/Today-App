@@ -12,7 +12,9 @@
 
 const DEFAULT_DEEP = 45 // est missing -> under-commit on a draft you'll review
 const ADMIN_LINE = 30 // >=30 deep, <30 admin (spec §6)
-const PILLAR_RANK = { arrow: 4, sunny: 3, sidegig: 2, life: 1, open: 0 }
+// Mirrors PILLAR_DEFS in usePillars — Arrow > Side gig > Life > Sunny > Open.
+// Sunny moved below Life on 2026-09-04.
+const PILLAR_RANK = { arrow: 4, sidegig: 3, life: 2, sunny: 1, open: 0 }
 const PILLAR_DECAY = 0.7 // per-pillar diminishing returns during selection (Q6)
 const MEETING_BUFFER_MIN = 15 // cool-down after a long meeting before deep work
 const LONG_MEETING_MIN = 60 // a meeting >= this earns the post-meeting buffer

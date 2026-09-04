@@ -9,11 +9,15 @@ import { useVisibilityKey } from './useVisibilityKey'
 // is synthetic: projects in the "Unfiled" area (or any area that maps to no
 // pillar) land here. Course+ has no orphan tasks (every cp_task has a
 // project_id), so the old per-task "Open Tasks" path is effectively empty.
+// Order here IS the order every surface renders in, and it is Nate's stated
+// priority: Arrow, Side gig, Life, Sunny, Open Tasks. Sunny dropped below Life
+// on 2026-09-04. `proposeSchedule`'s PILLAR_RANK mirrors this — keep the two in
+// step or the schedule will rank pillars differently from how Triage lists them.
 const PILLAR_DEFS = [
   { id: 'arrow',   name: 'Arrow',      color: 'arrow' },
-  { id: 'sunny',   name: 'Sunny',      color: 'sunny' },
   { id: 'sidegig', name: 'Side gig',   color: 'sidegig' },
   { id: 'life',    name: 'Life',       color: 'life' },
+  { id: 'sunny',   name: 'Sunny',      color: 'sunny' },
   { id: 'open',    name: 'Open Tasks', color: 'open' },
 ]
 

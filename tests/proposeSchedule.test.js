@@ -149,14 +149,17 @@ describe('proposeSchedule', () => {
     expect(out[0].pillar).toBe('sidegig') // highest base placed first (morning bias)
   })
 
-  it('6. per-pillar decay diversifies (2 arrow then sunny, not 3 arrow)', () => {
-    // arrow base = 40 (rank) + 10 (doDate 5d out) = 50; sunny base = 30.
+  it('6. per-pillar decay diversifies (2 arrow then side gig, not 3 arrow)', () => {
+    // arrow base = 40 (rank) + 10 (doDate 5d out) = 50; sidegig base = 30.
     // window 8-14 (360 free) at neutral 0.55 -> budget 198 -> exactly three 60m blocks.
+    // Uses side gig because it is now the rank directly below arrow — Sunny
+    // dropped below Life on 2026-09-04, so the old arrow/sunny pairing no
+    // longer produces the gap this case is about.
     const tasks = [
       task({ id: 'a1', pillar: 'arrow', est: '60m', doDate: '2026-06-06' }),
       task({ id: 'a2', pillar: 'arrow', est: '60m', doDate: '2026-06-06' }),
       task({ id: 'a3', pillar: 'arrow', est: '60m', doDate: '2026-06-06' }),
-      task({ id: 's1', pillar: 'sunny', est: '60m' }),
+      task({ id: 's1', pillar: 'sidegig', est: '60m' }),
     ]
     const out = proposeSchedule({
       tasks,
@@ -168,7 +171,7 @@ describe('proposeSchedule', () => {
     })
     expect(out.length).toBe(3)
     expect(out.filter((b) => b.pillar === 'arrow').length).toBe(2)
-    expect(out.filter((b) => b.pillar === 'sunny').length).toBe(1)
+    expect(out.filter((b) => b.pillar === 'sidegig').length).toBe(1)
   })
 
   it('7. parseEst -> block sizing / admin exclusion in the pipeline', () => {

@@ -8,7 +8,8 @@ import { createPortal } from 'react-dom'
 import { IconCheck } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
 import { surfaceActions } from '../lib/surfaceActions.js'
-import { isoDate } from '../lib/day.js'
+import { useReminders, dueLabelFor } from '../lib/useReminders.js'
+import { isoDate, addDays } from '../lib/day.js'
 
 const ReactDOM = { createPortal }
 
@@ -889,6 +890,8 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
                      getGlobalCrossTarget, onCrossReassign,
                      globalReassignedOut, globalProjectAdditions, globalOpenAdditions,
                      globalDropTargetId,
+                     // Apple Reminders, rendered inside the Open Tasks pillar only.
+                     reminders = [], onCompleteReminder,
                      pillarRootRef }) {
   const [adding, setAdding] = React.useState(false);
   const [draft, setDraft] = React.useState('');
@@ -1086,7 +1089,9 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
       }).length
     + pillarOpenTasks.filter(isStillOpen).length
     + extraTasks.filter(isStillOpen).length
-    + openExtrasFromOther.filter(t => !globalReassignedOut.has(t.id) && isStillOpen(t)).length;
+    + openExtrasFromOther.filter(t => !globalReassignedOut.has(t.id) && isStillOpen(t)).length
+    // Reminders are real open work in this pillar, so they belong in its count.
+    + reminders.length;
   const pushedCount = pillar.projects.reduce(
     (acc, p) => acc + p.tasks.filter(t => removedIds.has(t.id)).length, 0
   ) + pillarOpenTasks.filter(t => removedIds.has(t.id)).length;
@@ -1102,12 +1107,13 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
     0
   ) + pillarOpenTasks.filter((t) => isStillOpen(t) && (t.status === 'now' || t.status === 'in_progress')).length;
 
+  // "N in focus · M open" everywhere, collapsed included — the pulled count is
+  // the number worth seeing at a glance, and "committed" was both a different
+  // vocabulary from Course+ and a number Nate wasn't using.
   let countLabel;
-  if (isEmpty)         countLabel = 'all cleared';
-  else if (isCollapsed) countLabel = `${totalTasks} committed`;
+  if (isEmpty)          countLabel = 'all cleared';
   else if (pushedCount) countLabel = `${totalTasks} kept · ${pushedCount} pushed`;
-  else if (nowCount)    countLabel = `${nowCount} in focus · ${totalTasks} open`;
-  else                  countLabel = `${totalTasks} open`;
+  else                  countLabel = `${nowCount} in focus · ${totalTasks} open`;
 
   const translateY = isDragging ? dragOffsetY :
                      isShifted   ? shiftAmount : 0;
@@ -1352,6 +1358,33 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
             );
           })()}
 
+          {/* Apple Reminders. Rendered as their own rows, NOT as tasks: they
+              live in `today_reminders`, not cp_tasks, so the swipe/status
+              machinery above would try to write them to the wrong table. Tap
+              the circle to complete, same as the errands strip. */}
+          {reminders.length > 0 && (
+            <div className="pillar-opentasks">
+              <div className="pillar-opentasks-label">
+                <span>reminders</span>
+                <span className="pillar-opentasks-count">{reminders.length}</span>
+              </div>
+              {reminders.map((r) => (
+                <div key={r.id} className="tmrw-rem-row">
+                  <button
+                    className="tmrw-rem-check"
+                    onClick={() => onCompleteReminder && onCompleteReminder(r.id)}
+                    title="mark done"
+                    aria-label={`complete ${r.title}`}
+                  />
+                  <div className="tmrw-rem-body">
+                    <div className="tmrw-rem-title">{r.title}</div>
+                    <div className="tmrw-rem-meta">{dueLabelFor(r.dueDate) ?? 'reminder'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           {reassignToast && (
             <div className="reassign-toast">
               <span className="reassign-toast-icon">→</span>
@@ -1400,6 +1433,10 @@ export function Triage({
   onRemoveEvent,
 }) {
   const removeCalEvent = React.useCallback((ev) => onRemoveEvent?.(ev), [onRemoveEvent])
+
+  // Apple Reminders land in the Open Tasks pillar. Queried through tomorrow so
+  // the set matches the errands strip: overdue + today + tomorrow.
+  const { reminders, complete: completeReminder } = useReminders(isoDate(addDays(1)))
   const calEvents = React.useMemo(
     () => {
       // Safeguard against duplicate meeting rows the iCal sync can pile up in
@@ -1870,7 +1907,9 @@ export function Triage({
                        globalReassignedOut={reassignedOut}
                        globalProjectAdditions={projectAdditions}
                        globalOpenAdditions={openAdditions}
-                       globalDropTargetId={globalDropTargetId} />
+                       globalDropTargetId={globalDropTargetId}
+                       reminders={pillar.id === 'open' ? reminders : []}
+                       onCompleteReminder={completeReminder} />
           );
         })}
 
