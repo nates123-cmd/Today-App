@@ -1831,13 +1831,35 @@ export function Triage({
   const collapsedCount = Object.values(pillarState).filter(v => v === 'collapsed').length;
   const allCollapsed = collapsedCount === PILLARS.length;
 
+  // Page header totals, in the same vocabulary as the pillar rows: how many
+  // tasks are pulled into focus vs how much is open overall. `removed` (pushed
+  // / dropped during the ritual) is subtracted so the header stays consistent
+  // with the rows as Nate works, rather than drifting above them. Reminders
+  // count as open work, matching the Open Tasks pillar.
+  const headerCounts = React.useMemo(() => {
+    let inFocus = 0;
+    let open = 0;
+    for (const p of PILLARS) {
+      const tasks = [
+        ...(p.openTasks ?? []),
+        ...(p.projects ?? []).flatMap((proj) => proj.tasks ?? []),
+      ];
+      for (const t of tasks) {
+        if (removed.has(t.id)) continue;
+        open += 1;
+        if (t.status === 'now' || t.status === 'in_progress') inFocus += 1;
+      }
+    }
+    return { inFocus, open: open + reminders.length };
+  }, [PILLARS, removed, reminders]);
+
   return (
     <div className="page" data-screen-label="02 Triage">
       <div className="triage">
         <div className="triage-header">
           <div className="triage-title">Triage</div>
           <div className="triage-progress">
-            <span className="done">{collapsedCount}</span> / {PILLARS.length} committed
+            <span className="done">{headerCounts.inFocus}</span> in focus · {headerCounts.open} open
           </div>
         </div>
         <div className="triage-subtitle">tasks: swipe → status · swipe ← time · hold to move</div>
