@@ -1,4 +1,4 @@
-const CACHE = 'today-v9'
+const CACHE = 'today-v10'
 
 // index.html, resolved against the SW scope (/Today-App/ on Pages, / in dev).
 const shellUrl = () => new URL('index.html', self.registration.scope).toString()
