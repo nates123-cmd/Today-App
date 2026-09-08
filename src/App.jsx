@@ -8,7 +8,16 @@ import { BlockView } from './surfaces/BlockView.jsx'
 import { DayOverlay } from './surfaces/DayOverlay.jsx'
 import { usePlacedBlocks } from './lib/usePlacedBlocks.js'
 import { useBlockItems } from './lib/useBlockItems.js'
-import { todayISO, isPlanningTomorrow } from './lib/day.js'
+import { todayISO, isPlanningTomorrow, addDays, isoDate } from './lib/day.js'
+
+// blockId -> { total, done } for the badge on each block in the grid.
+function countByBlock(byBlock) {
+  const m = new Map()
+  for (const [blockId, list] of byBlock) {
+    m.set(blockId, { total: list.length, done: list.filter((i) => i.done).length })
+  }
+  return m
+}
 
 const TODAY_KEY = 'today.lastOpened'
 const PAGE_KEY = 'today.lastPage'
@@ -42,19 +51,28 @@ export default function App() {
   const { placed, setPlaced, dismiss } = usePlacedBlocks()
   const [remainingMinsByPillar, setRemainingMinsByPillar] = useState({})
   const [dayOverlay, setDayOverlay] = useState(() => (isPlanningTomorrow() ? 'tomorrow' : null))
+  // { block, scope } — scope is 'today' | 'tomorrow'. Needed because a placed
+  // block carries no date of its own (usePlacedBlocks strips it), so only the
+  // surface that opened it knows which day's checklist to write to.
   const [openBlock, setOpenBlock] = useState(null)
 
-  // One shared block_items instance for the whole app. Scheduling and Live read
-  // it for their per-block counts and BlockView mutates it, so ticking an item
-  // off inside the sheet updates the grid behind it without a reload.
+  // One shared block_items instance per day the app can show work for.
+  // Scheduling and Live read today's for their per-block counts and BlockView
+  // mutates it, so ticking an item off inside the sheet updates the grid behind
+  // it without a reload.
+  //
+  // Tomorrow gets its OWN instance: `useBlockItems` is date-scoped and stamps
+  // that date on every row it writes, so assigning work on the Tomorrow grid
+  // has to go through the tomorrow-scoped hook or the item lands on today.
   const blockItems = useBlockItems()
-  const itemCounts = useMemo(() => {
-    const m = new Map()
-    for (const [blockId, list] of blockItems.byBlock) {
-      m.set(blockId, { total: list.length, done: list.filter((i) => i.done).length })
-    }
-    return m
-  }, [blockItems.byBlock])
+  const [tomorrowISO] = useState(() => isoDate(addDays(1)))
+  const blockItemsTomorrow = useBlockItems(tomorrowISO)
+
+  const itemCounts = useMemo(() => countByBlock(blockItems.byBlock), [blockItems.byBlock])
+  const itemCountsTomorrow = useMemo(
+    () => countByBlock(blockItemsTomorrow.byBlock),
+    [blockItemsTomorrow.byBlock]
+  )
 
   const pagerRef = useRef(null)
   const activePageRef = useRef(initialIdx)
@@ -134,10 +152,14 @@ export default function App() {
             placed={placed}
             setPlaced={setPlaced}
             remainingMinsByPillar={remainingMinsByPillar}
-            onOpenBlock={setOpenBlock}
+            onOpenBlock={(b) => setOpenBlock({ block: b, scope: 'today' })}
             itemCounts={itemCounts}
           />
-          <Live placed={placed} onOpenBlock={setOpenBlock} itemCounts={itemCounts} />
+          <Live
+            placed={placed}
+            onOpenBlock={(b) => setOpenBlock({ block: b, scope: 'today' })}
+            itemCounts={itemCounts}
+          />
         </div>
 
         <div className="dot-rail">
@@ -172,13 +194,24 @@ export default function App() {
           </div>
         )}
 
-        <DayOverlay kind={dayOverlay} onClose={() => setDayOverlay(null)} />
+        <DayOverlay
+          kind={dayOverlay}
+          onClose={() => setDayOverlay(null)}
+          onOpenBlock={(b) => setOpenBlock({ block: b, scope: 'tomorrow' })}
+          itemCounts={itemCountsTomorrow}
+        />
 
+        {/* Rendered here at the app root rather than inside DayOverlay on
+            purpose: `.day-overlay` carries a transform, which would make this
+            sheet's position:fixed resolve against the overlay and scroll away
+            with it. `placed` is today-only, and BlockView uses it just for the
+            "next event in N min" nudge — a today concept — so a tomorrow block
+            passes none and the nudge stays hidden. */}
         {openBlock && (
           <BlockView
-            block={openBlock}
-            placed={placed}
-            api={blockItems}
+            block={openBlock.block}
+            placed={openBlock.scope === 'tomorrow' ? null : placed}
+            api={openBlock.scope === 'tomorrow' ? blockItemsTomorrow : blockItems}
             onClose={() => setOpenBlock(null)}
           />
         )}

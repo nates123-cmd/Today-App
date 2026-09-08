@@ -27,7 +27,9 @@ function yesterdayDateObj() {
   return addDays(-1)
 }
 
-export function DayOverlay({ kind, onClose }) {
+// `onOpenBlock` / `itemCounts` are pure pass-through to the Tomorrow grid. The
+// sheet they open is rendered by App, not here — see the note at its render.
+export function DayOverlay({ kind, onClose, onOpenBlock, itemCounts }) {
   if (!kind) return null
 
   // Daily highlight: live read/write to Ink's entries table.
@@ -254,7 +256,7 @@ export function DayOverlay({ kind, onClose }) {
               </div>
             </>
           ) : (
-            <TomorrowPlan />
+            <TomorrowPlan onOpenBlock={onOpenBlock} itemCounts={itemCounts} />
           )}
         </>
       )}

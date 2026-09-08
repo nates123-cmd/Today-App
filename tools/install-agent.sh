@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install the 5:30am reminders push as a launchd agent.
+# Install the reminders push as a launchd agent (5:30am, 12:30pm, 6:30pm).
 #
 # WHY THIS COPIES THE SCRIPT instead of pointing launchd at the repo:
 # the repo lives under ~/Desktop, which is TCC-protected. A launchd agent gets
@@ -45,11 +45,25 @@ cat > "$PLIST" <<PLIST_EOF
     <key>TODAY_ENV</key>
     <string>$DEST/.env</string>
   </dict>
+  <!-- Three runs, not one. A single 5:30am push meant the evening "plan
+       tomorrow" pass ran on a snapshot taken ~14 hours earlier, so anything
+       added to Reminders during the workday was simply missing from the plan.
+       The 6:30pm run lands before the 7pm planning handover. -->
   <key>StartCalendarInterval</key>
-  <dict>
-    <key>Hour</key><integer>5</integer>
-    <key>Minute</key><integer>30</integer>
-  </dict>
+  <array>
+    <dict>
+      <key>Hour</key><integer>5</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+    <dict>
+      <key>Hour</key><integer>12</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+    <dict>
+      <key>Hour</key><integer>18</integer>
+      <key>Minute</key><integer>30</integer>
+    </dict>
+  </array>
   <key>RunAtLoad</key>
   <false/>
   <key>StandardOutPath</key>

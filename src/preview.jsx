@@ -13,6 +13,7 @@ import './surfaces.css'
 import './surfaces2.css'
 import './shell.css'
 import { BlockView, CoursePicker } from './surfaces/BlockView.jsx'
+import { Scheduling } from './surfaces/Scheduling.jsx'
 import { recurringKey } from './lib/useBlockItems.js'
 
 const BLOCK = {
@@ -124,23 +125,88 @@ function useFakeApi() {
   }
 }
 
+// The Tomorrow grid, wired exactly as TomorrowPlan wires it: `Scheduling` in
+// embedded mode with `onOpenBlock` + `itemCounts` threaded through. This is the
+// path that was broken — TomorrowPlan rendered the embedded grid without either
+// prop, so the assign button never rendered and a block on tomorrow could not
+// be given any work. Scheduling imports no Supabase, so it mounts here against
+// fixtures for real rather than as a mock.
+function GridPreview({ api }) {
+  const [placed, setPlaced] = useState(PLACED)
+  const [openBlock, setOpenBlock] = useState(null)
+
+  const itemCounts = useMemo(() => {
+    const m = new Map()
+    for (const [blockId, list] of api.byBlock) {
+      m.set(blockId, { total: list.length, done: list.filter((i) => i.done).length })
+    }
+    return m
+  }, [api.byBlock])
+
+  return (
+    <>
+      <Scheduling
+        embedded
+        placed={placed}
+        setPlaced={setPlaced}
+        remainingMinsByPillar={{}}
+        onOpenBlock={setOpenBlock}
+        itemCounts={itemCounts}
+        title="Tomorrow"
+        subtitle="drag from the dock · tap a block's badge to assign work"
+      />
+      {/* App renders this at its root, outside the transformed .day-overlay.
+          `placed` is null for a tomorrow block so the "next event in N min"
+          nudge — a today concept — stays hidden. */}
+      {openBlock && (
+        <BlockView block={openBlock} placed={null} api={api} onClose={() => setOpenBlock(null)} />
+      )}
+    </>
+  )
+}
+
 function Preview() {
   const api = useFakeApi()
+  const [mode, setMode] = useState('grid')
+
   return (
     <div className="stage">
+      <div style={{ position: 'fixed', top: 8, left: 8, zIndex: 999, display: 'flex', gap: 6 }}>
+        {['grid', 'sheet'].map((m) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            style={{
+              font: '11px ui-monospace, monospace',
+              padding: '4px 8px',
+              borderRadius: 4,
+              border: '1px solid #ccc',
+              background: mode === m ? '#222' : '#fff',
+              color: mode === m ? '#fff' : '#222',
+            }}
+          >
+            {m}
+          </button>
+        ))}
+      </div>
       <div className="phone">
-        <BlockView block={BLOCK} placed={PLACED} api={api} onClose={() => {}} />
-        {/* usePillars needs a session, so the sheet's own picker stays empty
-            here. Render one against a fixture pillar so its styles are
-            reviewable too. */}
-        <div style={{ position: 'absolute', left: 20, right: 20, bottom: 150, zIndex: 200 }}>
-          <CoursePicker
-            pillar={PILLAR_FIXTURE}
-            block={BLOCK}
-            assignedTaskIds={api.assignedTaskIds}
-            onAdd={(p) => api.addItem(BLOCK.id, p)}
-          />
-        </div>
+        {mode === 'grid' ? <GridPreview api={api} /> : null}
+        {mode === 'sheet' ? (
+          <>
+            <BlockView block={BLOCK} placed={PLACED} api={api} onClose={() => {}} />
+            {/* usePillars needs a session, so the sheet's own picker stays empty
+                here. Render one against a fixture pillar so its styles are
+                reviewable too. */}
+            <div style={{ position: 'absolute', left: 20, right: 20, bottom: 150, zIndex: 200 }}>
+              <CoursePicker
+                pillar={PILLAR_FIXTURE}
+                block={BLOCK}
+                assignedTaskIds={api.assignedTaskIds}
+                onAdd={(p) => api.addItem(BLOCK.id, p)}
+              />
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   )

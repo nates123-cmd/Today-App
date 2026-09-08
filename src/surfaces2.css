@@ -1743,13 +1743,17 @@
    A separate button, NOT the block body: tapping the body still cycles the
    duration (30 → 45 → 60), which is the gesture the schedule is built with. */
 .sched-block-open {
-  position: absolute; top: 3px; right: 22px;
+  position: absolute; top: 1px; right: 20px;
   background: transparent; border: none;
-  font-family: var(--font-mono); font-size: 9px;
+  font-family: var(--font-mono); font-size: 10px;
   letter-spacing: 0.06em; line-height: 1;
   color: var(--ink-tertiary);
-  padding: 3px 4px; cursor: pointer;
+  /* Generous padding, not a bigger glyph: at 3px this was a ~14px target and
+     missed more taps than it caught. Width grows leftward off `right`, so it
+     cannot collide with the delete button. */
+  padding: 6px 7px; cursor: pointer;
   border-radius: 4px;
+  min-width: 24px;
 }
 .sched-block-open.has-items {
   color: var(--accent); background: var(--accent-faint);

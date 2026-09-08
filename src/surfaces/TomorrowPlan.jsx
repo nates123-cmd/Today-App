@@ -16,6 +16,7 @@ import { buildBriefing, pillarTimeBank } from '../lib/tomorrowBriefing.js'
 import { freeMinutes } from '../lib/proposeSchedule.js'
 import { isReingested } from '../lib/dismissedEvents.js'
 import { useReminders, dueLabelFor } from '../lib/useReminders.js'
+import { useSyncAge, fmtAge } from '../lib/useSyncAge.js'
 import { addDays, isoDate } from '../lib/day.js'
 import { IconCheck, IconClose } from '../icons.jsx'
 
@@ -77,7 +78,10 @@ function SectionLabel({ n, children, right }) {
   )
 }
 
-export function TomorrowPlan() {
+// `onOpenBlock` / `itemCounts` come from App (via DayOverlay) and are handed
+// straight to the embedded grid, so a block on tomorrow gets the same
+// assign-work affordance today's grid has.
+export function TomorrowPlan({ onOpenBlock, itemCounts }) {
   const date = React.useMemo(() => addDays(1), [])
   const dateISO = React.useMemo(() => isoDate(date), [date])
   const {
@@ -102,6 +106,11 @@ export function TomorrowPlan() {
   // Reminders are their own strip, not Course+ tasks — errands live beside the
   // plan rather than competing with the Now lane for deep-work slots.
   const { reminders, complete: completeReminder } = useReminders(dateISO)
+
+  // Both feeds are once-a-day pushes from outside the app, so the evening plan
+  // is built on a morning snapshot. Show how old it is rather than letting a
+  // stale (or dead) feed pass for the real day.
+  const syncAge = useSyncAge()
 
   const [view, setView] = React.useState('brief') // 'brief' | 'grid'
 
@@ -171,8 +180,10 @@ export function TomorrowPlan() {
           placed={placed}
           setPlaced={setPlaced}
           remainingMinsByPillar={timeBank}
+          onOpenBlock={onOpenBlock}
+          itemCounts={itemCounts}
           title="Tomorrow"
-          subtitle="drag from the dock · tap to expand · pull bottom edge to resize"
+          subtitle="drag from the dock · tap a block's badge to assign work · pull bottom edge to resize"
         />
       </>
     )
@@ -197,7 +208,7 @@ export function TomorrowPlan() {
       </div>
 
       {/* ─── 01 agenda ─── */}
-      <SectionLabel n="01" right="from gcal">
+      <SectionLabel n="01" right={fmtAge(syncAge.calendar) ? `gcal · ${fmtAge(syncAge.calendar)}` : 'gcal · not synced'}>
         agenda
       </SectionLabel>
       {agenda.length ? (
@@ -269,7 +280,10 @@ export function TomorrowPlan() {
       {/* ─── reminders ─── */}
       {reminders.length > 0 && (
         <>
-          <SectionLabel n="—" right="overdue · today · tomorrow">
+          <SectionLabel
+            n="—"
+            right={fmtAge(syncAge.reminders) ? `reminders · ${fmtAge(syncAge.reminders)}` : 'reminders · not synced'}
+          >
             errands
           </SectionLabel>
           {reminders.map((r) => (
