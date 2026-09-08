@@ -3,6 +3,7 @@
 // derived from placed_blocks (today's schedule).
 
 import React from 'react'
+import { IconArrowUR } from '../icons.jsx'
 
 // Routines that deep-link into another suite app when tapped from Live.
 // Keyed by source_id (the routine slug from Scheduling's dock).
@@ -71,9 +72,10 @@ function ActiveBlockCard({ block, nowDecimal, onOpenBlock, counts }) {
       <div className="active-card-footer">
         <span>{fmtTime(block.hour)} – {fmtTime(endDecimal)}</span>
         <span className="active-card-open" aria-hidden="true">
-          {link ? 'open Tide ↗'
-            : counts?.total ? `${counts.done}/${counts.total} done ↗`
-            : 'assign work ↗'}
+          {link ? 'open Tide'
+            : counts?.total ? `${counts.done}/${counts.total} done`
+            : 'assign work'}
+          <IconArrowUR w={11} />
         </span>
       </div>
     </div>

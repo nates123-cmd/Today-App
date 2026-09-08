@@ -1,7 +1,7 @@
 // Morning — page one. Passive grounding.
 
 import React from 'react'
-import { IconCheck, IconRegen, groundingIcons } from '../icons.jsx'
+import { IconArrowUR, IconCheck, IconRegen, groundingIcons } from '../icons.jsx'
 import { TIDE_BACKFILL, GROUNDING } from '../data.js'
 import { useOura } from '../lib/useOura.js'
 import { setOuraPat } from '../lib/oura.js'
@@ -82,7 +82,7 @@ export function Morning({ onOpenYesterday }) {
                 {ouraSyncing ? 'syncing…' : (ouraHasKey ? ouraSyncedAt : 'no key')}
               </span>
               <span style={{ color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                {OURA.delta} <span style={{ fontSize: 10, opacity: 0.7 }}>↗</span>
+                {OURA.delta} <span style={{ opacity: 0.7, display: 'flex' }}><IconArrowUR w={10} /></span>
               </span>
               {!ouraHasKey && (
                 <button className="regen-btn"

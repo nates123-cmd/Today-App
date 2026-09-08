@@ -1247,7 +1247,7 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
           {completedProjects.size > 0 && (
             <button className="completed-projects-toggle"
                     onClick={() => setShowCompletedProjects(v => !v)}>
-              <span className="check-pill">✓</span>
+              <span className="check-pill"><IconCheck w={10} /></span>
               <span>{completedProjects.size} completed project{completedProjects.size === 1 ? '' : 's'}</span>
               <span className="pillar-opentasks-show">{showCompletedProjects ? 'hide' : 'show'}</span>
             </button>
@@ -1296,7 +1296,7 @@ function PillarBox({ pillar, state, onToggle, onPushTask, onDropTask, onWeeklyTa
               return (
                 <div className="pillar-opentasks-collapsed"
                      onClick={() => setShowCompletedOpen(true)}>
-                  <span className="check-pill">✓</span>
+                  <span className="check-pill"><IconCheck w={10} /></span>
                   <span>all open tasks complete · {allOpenTasks.length}</span>
                   <span className="pillar-opentasks-show">show</span>
                 </div>

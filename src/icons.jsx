@@ -147,6 +147,33 @@ export const IconPause = (p) => (
 )
 export const IconBolt = (p) => <Icon {...p} d={<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />} />
 
+// "This opens somewhere else" / "this is trending up". Replaces the ↗ glyph.
+export const IconArrowUR = (p) => (
+  <Icon
+    {...p}
+    d={
+      <>
+        <path d="M7 17L17 7" />
+        <path d="M8 7h9v9" />
+      </>
+    }
+  />
+)
+
+// Replaces the bare + used as an add affordance, so a row that toggles between
+// add and added swaps one SVG for another rather than a glyph for an SVG.
+export const IconPlus = (p) => (
+  <Icon
+    {...p}
+    d={
+      <>
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </>
+    }
+  />
+)
+
 // Per-item timing. A stopwatch reduced to its geometry — dial, crown, and a
 // single hand held off-vertical so it reads as counting rather than as a clock
 // face telling the time.

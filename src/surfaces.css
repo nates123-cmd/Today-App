@@ -443,7 +443,7 @@
   background: var(--pillar-sunny);
   color: var(--push-next-fg);
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 600;
+  line-height: 0;
   flex-shrink: 0;
 }
 .pillar-opentasks-collapsed .pillar-opentasks-show {
@@ -507,7 +507,7 @@
   background: var(--pillar-sunny);
   color: var(--push-next-fg);
   display: inline-flex; align-items: center; justify-content: center;
-  font-size: 10px; font-weight: 600;
+  line-height: 0;
   flex-shrink: 0;
 }
 .completed-projects-toggle .pillar-opentasks-show {

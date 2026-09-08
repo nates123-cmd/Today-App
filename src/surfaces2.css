@@ -601,6 +601,7 @@
   font-family: var(--font-mono); font-size: 11px;
   letter-spacing: 0.12em; text-transform: uppercase;
   padding: 6px 0;
+  display: inline-flex; align-items: center; gap: 5px;
 }
 .active-card-open:hover { color: var(--accent-strong); }
 
@@ -1730,8 +1731,9 @@
 .picker-task:active { opacity: 0.6; }
 .picker-task.taken { opacity: 0.4; cursor: default; }
 .picker-plus {
-  width: 14px; text-align: center; flex-shrink: 0;
-  color: var(--ink-tertiary); font-size: 13px; line-height: 1;
+  width: 14px; flex-shrink: 0;
+  color: var(--ink-tertiary); line-height: 0;
+  display: inline-flex; align-items: center; justify-content: center;
 }
 .picker-task.taken .picker-plus { color: var(--accent); }
 .picker-task-label { flex: 1; font-size: 13px; color: var(--ink-primary); }

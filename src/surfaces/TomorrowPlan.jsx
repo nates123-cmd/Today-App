@@ -17,6 +17,7 @@ import { freeMinutes } from '../lib/proposeSchedule.js'
 import { isReingested } from '../lib/dismissedEvents.js'
 import { useReminders, dueLabelFor } from '../lib/useReminders.js'
 import { addDays, isoDate } from '../lib/day.js'
+import { IconCheck, IconClose } from '../icons.jsx'
 
 const PILLAR_NAMES = {
   arrow: 'Arrow',
@@ -337,7 +338,7 @@ export function TomorrowPlan() {
                   title="not tomorrow — won't be suggested again"
                   aria-label="deny"
                 >
-                  ✕
+                  <IconClose w={13} />
                 </button>
                 <button
                   className="tmrw-prop-btn confirm"
@@ -345,7 +346,7 @@ export function TomorrowPlan() {
                   title="confirm this block"
                   aria-label="confirm"
                 >
-                  ✓
+                  <IconCheck w={13} />
                 </button>
               </div>
             </div>

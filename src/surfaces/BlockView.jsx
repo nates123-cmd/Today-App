@@ -11,7 +11,7 @@
 // snapshots, and only completion writes back.
 
 import React from 'react'
-import { IconCheck, IconPause, IconStopwatch } from '../icons.jsx'
+import { IconCheck, IconPause, IconPlus, IconStopwatch } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
 import { surfaceActions } from '../lib/surfaceActions.js'
 import { liveElapsed, fmtDuration } from '../lib/useBlockItems.js'
@@ -233,7 +233,7 @@ export function CoursePicker({ pillar, block, onAdd, assignedTaskIds }) {
         className={`picker-task ${taken ? 'taken' : ''} ${urgent ? 'urgent' : ''}`}
         onClick={() => !taken && onAdd({ label: t.label, source: 'course', cpTaskId: t.id })}
       >
-        <span className="picker-plus">{taken ? '✓' : '+'}</span>
+        <span className="picker-plus">{taken ? <IconCheck w={11} /> : <IconPlus w={11} />}</span>
         <span className="picker-task-label">{t.label}</span>
         {urgent && formatProjectDue(t.doDate) && (
           <span className="pblock-task-due">{formatProjectDue(t.doDate)}</span>
