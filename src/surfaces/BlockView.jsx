@@ -11,7 +11,7 @@
 // snapshots, and only completion writes back.
 
 import React from 'react'
-import { IconCheck, IconPause } from '../icons.jsx'
+import { IconCheck, IconPause, IconStopwatch } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
 import { surfaceActions } from '../lib/surfaceActions.js'
 import { liveElapsed, fmtDuration } from '../lib/useBlockItems.js'
@@ -133,8 +133,12 @@ function AssignedItem({ item, api, recurDef, expanded, onExpand }) {
           <div className="bitem-est">{item.estMinutes}m</div>
         )}
         {item.source === 'course' && <div className="bitem-badge">course</div>}
-        <button className="bitem-timer-btn" onClick={onExpand} aria-label="timing">
-          {running ? '▮▮' : '⏱'}
+        <button
+          className={`bitem-timer-btn ${running ? 'running' : ''}`}
+          onClick={onExpand}
+          aria-label={running ? 'pause timing' : 'timing'}
+        >
+          {running ? <IconPause w={13} /> : <IconStopwatch w={15} />}
         </button>
       </div>
 

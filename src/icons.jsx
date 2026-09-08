@@ -146,3 +146,21 @@ export const IconPause = (p) => (
   />
 )
 export const IconBolt = (p) => <Icon {...p} d={<path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />} />
+
+// Per-item timing. A stopwatch reduced to its geometry — dial, crown, and a
+// single hand held off-vertical so it reads as counting rather than as a clock
+// face telling the time.
+export const IconStopwatch = (p) => (
+  <Icon
+    {...p}
+    sw={1.4}
+    d={
+      <>
+        <circle cx="12" cy="14" r="7.5" />
+        <path d="M12 14l3.2-3.2" />
+        <path d="M9.75 3h4.5" />
+        <path d="M12 3v3.5" />
+      </>
+    }
+  />
+)

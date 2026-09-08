@@ -1617,13 +1617,16 @@
 }
 .bitem-timer-btn {
   background: transparent; border: none;
-  color: var(--ink-tertiary); font-size: 13px;
-  padding: 2px 0 2px 2px; line-height: 1;
+  color: var(--ink-tertiary);
+  padding: 2px 0 2px 2px; line-height: 0;
+  display: flex; align-items: center;
   cursor: pointer;
+  transition: color 0.15s ease;
 }
+.bitem-timer-btn.running { color: var(--accent); }
 .bitem-timer-btn:active { opacity: 0.5; }
 
-/* Per-item timing panel — opt-in, collapsed until the ⏱ is tapped. */
+/* Per-item timing panel — opt-in, collapsed until the stopwatch is tapped. */
 .bitem-panel {
   border-top: 1px solid var(--divider);
   padding: 12px 14px 14px;
