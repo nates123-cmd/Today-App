@@ -1555,3 +1555,205 @@
   letter-spacing: 0.06em; color: var(--ink-tertiary);
   margin-top: 3px;
 }
+
+/* ───────────────── BLOCK ITEMS — work assigned into a block ─────────────────
+   The checklist that hangs off one placed_block. Leads the drill-in; the
+   Course+ picker below it is the source you pull from, not the plan itself. */
+
+.bitem-list { margin-bottom: 4px; }
+
+.bitem-empty {
+  font-size: 13px; line-height: 1.5;
+  color: var(--ink-tertiary);
+  padding: 18px 4px 20px;
+}
+
+.bitem {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.bitem.done { background: var(--bg-deep); }
+
+.bitem-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 14px;
+}
+.bitem-label {
+  flex: 1; font-size: 14px; line-height: 1.35;
+  color: var(--ink-primary);
+  cursor: pointer;
+}
+.bitem.done .bitem-label {
+  color: var(--ink-tertiary);
+  text-decoration: line-through;
+  text-decoration-color: var(--ink-faint);
+}
+.bitem-recur-dot {
+  margin-left: 7px; font-size: 11px;
+  color: var(--ink-tertiary);
+}
+
+/* Live stopwatch. Turns amber once it passes the estimate — the whole point of
+   the estimate is to see the moment you blow through it. */
+.bitem-clock {
+  font-family: var(--font-mono); font-size: 11px;
+  letter-spacing: 0.04em; color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.bitem-clock.running { color: var(--accent); }
+.bitem-clock.over    { color: var(--accent-warn, #d4644a); }
+
+.bitem-est {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.06em; color: var(--ink-tertiary);
+}
+.bitem-badge {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 3px 6px; border-radius: 4px;
+  background: var(--bg-elevated); color: var(--ink-tertiary);
+}
+.bitem-timer-btn {
+  background: transparent; border: none;
+  color: var(--ink-tertiary); font-size: 13px;
+  padding: 2px 0 2px 2px; line-height: 1;
+  cursor: pointer;
+}
+.bitem-timer-btn:active { opacity: 0.5; }
+
+/* Per-item timing panel — opt-in, collapsed until the ⏱ is tapped. */
+.bitem-panel {
+  border-top: 1px solid var(--divider);
+  padding: 12px 14px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.bitem-panel-label {
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-tertiary); margin-right: 2px;
+}
+.bitem-est-row, .bitem-timer-row {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.bitem-chip {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 5px 9px; border-radius: 6px;
+  border: 1px solid var(--divider-strong);
+  background: transparent; color: var(--ink-secondary);
+  cursor: pointer;
+}
+.bitem-chip:active { opacity: 0.6; }
+.bitem-chip.on {
+  background: var(--accent-soft); border-color: var(--accent);
+  color: var(--accent);
+}
+.bitem-chip.go {
+  background: var(--accent); border-color: var(--accent);
+  color: var(--push-next-fg);
+}
+.bitem-chip.danger { color: var(--ink-tertiary); border-color: var(--divider); }
+.bitem-chip.prompt {
+  align-self: flex-start;
+  text-transform: none; letter-spacing: 0.04em;
+  color: var(--accent); border-color: var(--accent-soft);
+  background: var(--accent-faint);
+}
+.bitem-delta {
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--ink-tertiary);
+}
+.bitem-delta.over { color: var(--accent-warn, #d4644a); }
+
+.bitem-history {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--ink-tertiary);
+  line-height: 1.5;
+}
+.bitem-unrecur {
+  background: transparent; border: none;
+  color: var(--ink-faint); font-family: var(--font-mono);
+  font-size: 10px; margin-left: 8px; cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Free-text add row. Deliberately the same shape as an item so the list reads
+   as one column. */
+.bitem-add {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-surface);
+  border: 1px dashed var(--divider-strong);
+  border-radius: 12px;
+  padding: 11px 14px;
+  margin: 4px 0 18px;
+}
+.bitem-add-plus { color: var(--ink-tertiary); font-size: 15px; line-height: 1; }
+.bitem-add-input {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--ink-primary); font-family: var(--font-body); font-size: 14px;
+}
+.bitem-add-input::placeholder { color: var(--ink-faint); }
+
+/* ── Course+ picker ── */
+.picker {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.picker-head {
+  display: flex; align-items: center; gap: 8px;
+  cursor: pointer; user-select: none;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+.picker-head:active { opacity: 0.6; }
+.picker-body { margin-top: 12px; }
+.picker-project { margin-bottom: 14px; }
+.picker-project:last-child { margin-bottom: 0; }
+.picker-project-name {
+  font-family: var(--font-display); font-size: 14px;
+  font-weight: 500; color: var(--ink-secondary);
+  display: flex; align-items: baseline; gap: 10px;
+  margin-bottom: 2px;
+}
+.picker-task {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; cursor: pointer;
+  border-top: 1px solid var(--divider);
+}
+.picker-task:active { opacity: 0.6; }
+.picker-task.taken { opacity: 0.4; cursor: default; }
+.picker-plus {
+  width: 14px; text-align: center; flex-shrink: 0;
+  color: var(--ink-tertiary); font-size: 13px; line-height: 1;
+}
+.picker-task.taken .picker-plus { color: var(--accent); }
+.picker-task-label { flex: 1; font-size: 13px; color: var(--ink-primary); }
+.picker-task.urgent .picker-task-label { font-weight: 600; }
+
+/* ── the "assign" affordance on the Scheduling grid ──
+   A separate button, NOT the block body: tapping the body still cycles the
+   duration (30 → 45 → 60), which is the gesture the schedule is built with. */
+.sched-block-open {
+  position: absolute; top: 3px; right: 22px;
+  background: transparent; border: none;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.06em; line-height: 1;
+  color: var(--ink-tertiary);
+  padding: 3px 4px; cursor: pointer;
+  border-radius: 4px;
+}
+.sched-block-open.has-items {
+  color: var(--accent); background: var(--accent-faint);
+}
+.sched-block-open:active { opacity: 0.5; }
+
+.compact-block-count {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--ink-tertiary);
+  align-self: center; padding-right: 12px; flex-shrink: 0;
+}
+.compact-block-count.clear { color: var(--pillar-sunny); }

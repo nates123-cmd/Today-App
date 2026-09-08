@@ -24,6 +24,11 @@ export function Scheduling({
   placed: placedProp,
   setPlaced: setPlacedProp,
   remainingMinsByPillar,
+  // Tapping the › on a block opens BlockView so work can be assigned into it.
+  // `itemCounts` is a Map(blockId -> { total, done }) so the grid can show at a
+  // glance which blocks already have a plan without querying per block.
+  onOpenBlock,
+  itemCounts,
   embedded = false,
   showNow = !embedded,
   title = 'Schedule',
@@ -444,6 +449,18 @@ export function Scheduling({
                             title="delete block"
                             aria-label="delete block">×</button>
                   )}
+                  {onOpenBlock && !isPrep && (() => {
+                    const c = itemCounts?.get(b.id);
+                    return (
+                      <button className={`sched-block-open ${c?.total ? 'has-items' : ''}`}
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); onOpenBlock(b); }}
+                              title="assign work to this block"
+                              aria-label="assign work to this block">
+                        {c?.total ? `${c.done}/${c.total}` : '+'}
+                      </button>
+                    );
+                  })()}
                 </div>);
 
             })}

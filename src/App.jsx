@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Welcome } from './surfaces/Welcome.jsx'
 import { Morning } from './surfaces/Morning.jsx'
 import { Triage } from './surfaces/Triage.jsx'
 import { Scheduling } from './surfaces/Scheduling.jsx'
 import { Live } from './surfaces/Live.jsx'
-import { PillarBlockView } from './surfaces/PillarBlockView.jsx'
+import { BlockView } from './surfaces/BlockView.jsx'
 import { DayOverlay } from './surfaces/DayOverlay.jsx'
 import { usePlacedBlocks } from './lib/usePlacedBlocks.js'
+import { useBlockItems } from './lib/useBlockItems.js'
 import { todayISO, isPlanningTomorrow } from './lib/day.js'
 
 const TODAY_KEY = 'today.lastOpened'
@@ -42,6 +43,18 @@ export default function App() {
   const [remainingMinsByPillar, setRemainingMinsByPillar] = useState({})
   const [dayOverlay, setDayOverlay] = useState(() => (isPlanningTomorrow() ? 'tomorrow' : null))
   const [openBlock, setOpenBlock] = useState(null)
+
+  // One shared block_items instance for the whole app. Scheduling and Live read
+  // it for their per-block counts and BlockView mutates it, so ticking an item
+  // off inside the sheet updates the grid behind it without a reload.
+  const blockItems = useBlockItems()
+  const itemCounts = useMemo(() => {
+    const m = new Map()
+    for (const [blockId, list] of blockItems.byBlock) {
+      m.set(blockId, { total: list.length, done: list.filter((i) => i.done).length })
+    }
+    return m
+  }, [blockItems.byBlock])
 
   const pagerRef = useRef(null)
   const activePageRef = useRef(initialIdx)
@@ -121,8 +134,10 @@ export default function App() {
             placed={placed}
             setPlaced={setPlaced}
             remainingMinsByPillar={remainingMinsByPillar}
+            onOpenBlock={setOpenBlock}
+            itemCounts={itemCounts}
           />
-          <Live placed={placed} onOpenBlock={setOpenBlock} />
+          <Live placed={placed} onOpenBlock={setOpenBlock} itemCounts={itemCounts} />
         </div>
 
         <div className="dot-rail">
@@ -159,7 +174,14 @@ export default function App() {
 
         <DayOverlay kind={dayOverlay} onClose={() => setDayOverlay(null)} />
 
-        {openBlock && <PillarBlockView block={openBlock} placed={placed} onClose={() => setOpenBlock(null)} />}
+        {openBlock && (
+          <BlockView
+            block={openBlock}
+            placed={placed}
+            api={blockItems}
+            onClose={() => setOpenBlock(null)}
+          />
+        )}
       </div>
     </div>
   )

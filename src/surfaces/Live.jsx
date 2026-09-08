@@ -29,7 +29,7 @@ function fmtTime(h) {
   return `${hr12}:${mm}${ap}`;
 }
 
-function ActiveBlockCard({ block, nowDecimal, onOpenBlock }) {
+function ActiveBlockCard({ block, nowDecimal, onOpenBlock, counts }) {
   const endDecimal = block.hour + block.duration / 60;
   const minsLeft = Math.max(0, Math.round((endDecimal - nowDecimal) * 60));
   const colorClass = block.pillar || block.type || 'open';
@@ -38,10 +38,12 @@ function ActiveBlockCard({ block, nowDecimal, onOpenBlock }) {
       : block.type === 'routine' ? 'Routine'
       : 'Block');
   const link = routineLink(block);
-  const clickable = link || block.pillar;
+  // Every block is now openable, not just pillar blocks: the checklist lives on
+  // the block itself, so a meeting or an ad-hoc slot can carry work too.
+  const clickable = true;
   const onCardClick = () => {
     if (link) window.open(link, '_blank', 'noopener,noreferrer');
-    else if (block.pillar) onOpenBlock(block);
+    else onOpenBlock(block);
   };
 
   return (
@@ -68,17 +70,17 @@ function ActiveBlockCard({ block, nowDecimal, onOpenBlock }) {
 
       <div className="active-card-footer">
         <span>{fmtTime(block.hour)} – {fmtTime(endDecimal)}</span>
-        {clickable && (
-          <span className="active-card-open" aria-hidden="true">
-            {link ? 'open Tide ↗' : 'focus ↗'}
-          </span>
-        )}
+        <span className="active-card-open" aria-hidden="true">
+          {link ? 'open Tide ↗'
+            : counts?.total ? `${counts.done}/${counts.total} done ↗`
+            : 'assign work ↗'}
+        </span>
       </div>
     </div>
   );
 }
 
-function CompactBlock({ block, isPast, onOpenBlock }) {
+function CompactBlock({ block, isPast, onOpenBlock, counts }) {
   const link = routineLink(block);
   const cls = `compact-block ${block.type} ${isPast ? 'past' : ''}`;
   // Derive meta from live hour/duration so resize + drag in Scheduling reflect
@@ -101,21 +103,26 @@ function CompactBlock({ block, isPast, onOpenBlock }) {
   }
   return (
     <div className={cls}
-         style={{ cursor: (block.pillar || link) ? 'pointer' : 'default' }}
+         style={{ cursor: 'pointer' }}
          onClick={() => {
            if (link) window.open(link, '_blank', 'noopener,noreferrer');
-           else if (block.pillar) onOpenBlock(block);
+           else onOpenBlock(block);
          }}>
       <div className="compact-block-stripe"></div>
       <div className="compact-block-content">
         <div className="compact-block-title">{block.title}</div>
         <div className="compact-block-meta">{meta}</div>
       </div>
+      {counts?.total > 0 && (
+        <div className={`compact-block-count ${counts.done === counts.total ? 'clear' : ''}`}>
+          {counts.done}/{counts.total}
+        </div>
+      )}
     </div>
   );
 }
 
-export function Live({ placed: placedProp, onOpenBlock }) {
+export function Live({ placed: placedProp, onOpenBlock, itemCounts }) {
   const PLACED = placedProp ?? [];
 
   // Real wall-clock time, re-derived each minute so the past / active /
@@ -168,7 +175,7 @@ export function Live({ placed: placedProp, onOpenBlock }) {
             <div className="past-label">earlier</div>
             <div className="past-blocks">
               {past.slice(-2).map(b => (
-                <CompactBlock key={b.id} block={b} isPast={true} onOpenBlock={onOpenBlock} />
+                <CompactBlock key={b.id} block={b} isPast={true} onOpenBlock={onOpenBlock} counts={itemCounts?.get(b.id)} />
               ))}
             </div>
           </div>
@@ -182,7 +189,7 @@ export function Live({ placed: placedProp, onOpenBlock }) {
 
         {/* Active block — hero card */}
         {activeBlock ? (
-          <ActiveBlockCard block={activeBlock} nowDecimal={nowDecimal} onOpenBlock={onOpenBlock} />
+          <ActiveBlockCard block={activeBlock} nowDecimal={nowDecimal} onOpenBlock={onOpenBlock} counts={itemCounts?.get(activeBlock.id)} />
         ) : (
           <div className="active-card empty">
             <div className="active-card-pillar">
@@ -201,7 +208,7 @@ export function Live({ placed: placedProp, onOpenBlock }) {
             {upcoming.map(b => (
               <div className="upcoming-row" key={b.id}>
                 <div className="upcoming-time">{fmtTime(b.hour)}</div>
-                <CompactBlock block={b} onOpenBlock={onOpenBlock} />
+                <CompactBlock block={b} onOpenBlock={onOpenBlock} counts={itemCounts?.get(b.id)} />
               </div>
             ))}
           </div>
