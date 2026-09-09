@@ -162,6 +162,43 @@ async function clearMatch(row) {
   });
 }
 
+// Sweep leftovers a moved event left behind.
+//
+// clearMatch keys on (date, hour, title), so an event whose TIME changed
+// re-inserts at its new hour and the row at the OLD hour survives forever. A
+// timezone change does this to a whole day at once: on 2026-08-17, flying to
+// New York re-landed every meeting exactly one hour off and left both copies.
+// Going from one ingest run a day to two doubles the chances of catching an
+// event mid-move, so this closes the hole.
+//
+// The rule leans on one property: an event still on the calendar is rewritten
+// by EVERY run, so its updated_at is never older than the last run. A ghost is
+// never rewritten, so it just keeps aging. Deleting rows past STALE_HOURS
+// therefore cannot touch a live event.
+//
+// STALE_HOURS must stay ABOVE the longest gap between ingest runs. That is what
+// makes this safe rather than merely likely: a live row can never age into the
+// sweep, there is no window where the day reads empty, and a run that dies
+// halfway can never delete events it has not re-inserted yet.
+//
+// 36h is deliberately not tuned to the current 5am+5pm schedule. Sizing it to
+// that 12h gap would leave a silent trap: drop back to one run a day — how this
+// ran for months — and the gap becomes 24h, live rows start reading as stale,
+// and the sweep deletes a day's real meetings mid-run. 36h survives the
+// once-daily fallback with margin, so the schedule can change without anyone
+// remembering this constant exists. The cost is only that a ghost lives up to
+// ~1.5 days instead of clearing on the next run.
+const STALE_HOURS = 36;
+
+async function sweepStale(date) {
+  const cutoff = new Date(Date.now() - STALE_HOURS * 3600_000).toISOString();
+  await sbFetch(
+    `/placed_blocks?date=eq.${date}&source=eq.ical&user_id=eq.${OWNER_ID}` +
+      `&updated_at=lt.${encodeURIComponent(cutoff)}`,
+    { method: "DELETE", headers: { Prefer: "return=minimal" } },
+  );
+}
+
 async function clearDay(date) {
   await sbFetch(
     `/placed_blocks?date=eq.${date}&source=eq.ical&user_id=eq.${OWNER_ID}`,
@@ -280,6 +317,14 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     return json({ error: "insert failed: " + e.message }, 502);
+  }
+  // After the write, never before: the sweep is housekeeping, so a failure here
+  // must not turn a successful ingest into a 502 and make the Shortcut look
+  // broken. Batch mode does not need it — it clears each day outright.
+  try {
+    await sweepStale(row.date);
+  } catch (e) {
+    console.error("sweepStale failed for " + row.date + ": " + e.message);
   }
   return json({ date, inserted: 1, mode: "single" });
 });
