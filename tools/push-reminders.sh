@@ -33,9 +33,11 @@ set -a; source "$ENV_FILE"; set +a
 : "${VITE_SUPABASE_ANON_KEY:?anon key missing}"
 
 if [ -z "${REMKIT:-}" ]; then
-  if [ -x "$HERE/remkit" ]; then REMKIT="$HERE/remkit"; else REMKIT="$HERE/remkit/remkit"; fi
+  # -f matters: in the repo, tools/remkit is the source DIRECTORY, and -x alone
+  # is true for a directory.
+  if [ -f "$HERE/remkit" ]; then REMKIT="$HERE/remkit"; else REMKIT="$HERE/remkit/remkit"; fi
 fi
-[ -x "$REMKIT" ] || { echo "remkit not found at $REMKIT (run tools/remkit/build.sh)" >&2; exit 1; }
+[ -f "$REMKIT" ] && [ -x "$REMKIT" ] || { echo "remkit not found at $REMKIT (run tools/remkit/build.sh)" >&2; exit 1; }
 
 STATE_DIR="${REMINDERS_STATE_DIR:-$HOME/Library/Application Support/today-reminders}"
 mkdir -p "$STATE_DIR"
