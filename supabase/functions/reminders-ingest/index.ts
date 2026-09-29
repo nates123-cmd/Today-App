@@ -20,6 +20,19 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 //   DELETE ?list=<name>        -> clear one list's reminders
 //   DELETE ?all=1              -> clear every reminder for the owner
 //
+// Write-back queue (today_reminder_actions), drained by the Mac agent:
+//   GET ?actions=pending       -> pending actions, oldest first
+//   POST { acks: [ { id, ok, error?, result_id? }, ... ] }
+//        -> mark each action done, or count a failed attempt (failed for good
+//           after MAX_ATTEMPTS).
+//
+// Batch sync mode: when EVERY reminder in a batch carries an `id` (the remkit
+// agent always sends Apple's identifier), the batch is an UPSERT on
+// (user_id, source, source_id) plus a delete of the list's rows that are no
+// longer open. Row uuids stay stable, and a reminder with a pending "complete"
+// action stays completed here until the agent has applied it in Apple.
+// Without ids it falls back to the old delete-then-insert replace.
+//
 // Upsert keys on (user_id, source, source_id), so re-running the Shortcut
 // UPDATES rather than duplicating. That duplicate-on-every-run failure is
 // exactly what went wrong with the calendar ingest for weeks, so reminders are
@@ -28,7 +41,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-reminders-secret",
 };
 const json = (body: unknown, status = 200) =>
@@ -138,8 +151,93 @@ function toRow(r: Record<string, unknown>, fallbackList?: unknown) {
     priority: Number.isFinite(priority) ? priority : null,
     source: "ios_reminders",
     source_id: r.id == null ? null : String(r.id),
+    captured_at: dueAt(r.created ?? null),
     updated_at: new Date().toISOString(),
   };
+}
+
+const ACTIONS = "/today_reminder_actions";
+// Past this, an action is parked as failed so one bad row can't retry forever.
+const MAX_ATTEMPTS = 5;
+
+async function pendingActions() {
+  return await sbFetch(
+    `${ACTIONS}?user_id=eq.${OWNER_ID}&status=eq.pending&order=created_at.asc&limit=100` +
+      `&select=id,action,source_id,payload,attempts,created_at`
+  );
+}
+
+type Ack = { id?: unknown; ok?: unknown; error?: unknown; result_id?: unknown };
+
+async function applyAcks(acks: Ack[]) {
+  let done = 0, retry = 0, failed = 0;
+  for (const a of acks) {
+    if (typeof a.id !== "string") continue;
+    const id = encodeURIComponent(a.id);
+    if (a.ok === true) {
+      await sbFetch(`${ACTIONS}?id=eq.${id}&user_id=eq.${OWNER_ID}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: "done",
+          applied_at: new Date().toISOString(),
+          error: a.error == null ? null : String(a.error),
+          result_id: a.result_id == null ? null : String(a.result_id),
+        }),
+      });
+      done++;
+      continue;
+    }
+    const cur = await sbFetch(`${ACTIONS}?id=eq.${id}&user_id=eq.${OWNER_ID}&select=attempts`);
+    const attempts = (cur.ok ? JSON.parse(cur.text)[0]?.attempts ?? 0 : 0) + 1;
+    const give_up = attempts >= MAX_ATTEMPTS;
+    await sbFetch(`${ACTIONS}?id=eq.${id}&user_id=eq.${OWNER_ID}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        attempts,
+        status: give_up ? "failed" : "pending",
+        error: a.error == null ? "unknown error" : String(a.error),
+      }),
+    });
+    give_up ? failed++ : retry++;
+  }
+  return { done, retry, failed };
+}
+
+// PostgREST in-list value, double-quoted so ids with odd characters survive.
+const inList = (ids: string[]) =>
+  `(${ids.map((s) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(",")})`;
+
+// Sync one list by Apple identifier. See the header comment.
+async function syncById(list: string, rows: NonNullable<ReturnType<typeof toRow>>[]) {
+  // Keep a reminder completed here while its "complete" is still queued: the
+  // tick happened after the agent drained the queue but before it pushed.
+  const pend = await sbFetch(
+    `${ACTIONS}?user_id=eq.${OWNER_ID}&status=eq.pending&action=eq.complete&select=source_id`
+  );
+  const ticked = new Set<string>(
+    pend.ok ? JSON.parse(pend.text).map((p: { source_id: string }) => p.source_id) : []
+  );
+  for (const r of rows) if (r.source_id && ticked.has(r.source_id)) r.completed = true;
+
+  if (rows.length) {
+    const up = await sbFetch("/today_reminders?on_conflict=user_id,source,source_id", {
+      method: "POST",
+      body: JSON.stringify(rows),
+      headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    });
+    if (!up.ok) return { error: up.text, status: up.status };
+  }
+
+  // Drop this list's rows that are no longer open in Apple (completed or
+  // deleted on the phone), plus legacy rows from the id-less era.
+  const base = `/today_reminders?user_id=eq.${OWNER_ID}&source=eq.ios_reminders&list_name=eq.${encodeURIComponent(list)}`;
+  const keep = rows.map((r) => r.source_id!).filter(Boolean);
+  const del = keep.length
+    ? `${base}&or=(source_id.is.null,source_id.not.in.${encodeURIComponent(inList(keep))})`
+    : base;
+  const gone = await sbFetch(del, { method: "DELETE", headers: { Prefer: "return=representation" } });
+  if (!gone.ok) return { error: gone.text, status: gone.status };
+  return { upserted: rows.length, removed: JSON.parse(gone.text || "[]").length, held_completed: ticked.size };
 }
 
 async function sbFetch(path: string, opts: RequestInit = {}) {
@@ -178,6 +276,14 @@ Deno.serve(async (req) => {
     return res.ok ? json({ deleted: true }) : json({ error: res.text }, res.status);
   }
 
+  if (req.method === "GET") {
+    if (url.searchParams.get("actions") !== "pending") {
+      return json({ error: "GET needs ?actions=pending" }, 400);
+    }
+    const res = await pendingActions();
+    return res.ok ? json({ actions: JSON.parse(res.text) }) : json({ error: res.text }, res.status);
+  }
+
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
   let body: Record<string, unknown>;
@@ -187,7 +293,18 @@ Deno.serve(async (req) => {
     return json({ error: "invalid json" }, 400);
   }
 
+  if (Array.isArray(body.acks)) return json(await applyAcks(body.acks as Ack[]));
+
   const batch = Array.isArray(body.reminders) ? body.reminders : null;
+
+  const listName = body.list ?? body.listName ?? null;
+  if (batch && listName != null && batch.every((r: Record<string, unknown>) => r?.id != null)) {
+    const rows = batch
+      .map((r: Record<string, unknown>) => toRow(r, listName))
+      .filter((r): r is NonNullable<typeof r> => r !== null);
+    const out = await syncById(String(listName), rows);
+    return "error" in out ? json({ error: out.error }, out.status) : json(out);
+  }
 
   if (batch) {
     // Whole-list replace: clear the list, then insert what the phone just read.

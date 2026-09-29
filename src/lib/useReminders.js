@@ -5,8 +5,9 @@
 // list into it would compete with the Now lane. So these render alongside the
 // plan as errands/admin, and never enter the deep-work scheduler.
 //
-// Rows arrive via the `reminders-ingest` edge function (an iOS Shortcut posts
-// the list). See `reminders-shortcut.md`.
+// Rows arrive via the `reminders-ingest` edge function, pushed from the Mac by
+// tools/push-reminders.sh (EventKit via tools/remkit). Ticks go back the same
+// way through today_reminder_actions.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from './supabase'
@@ -15,6 +16,7 @@ import { todayISO } from './day'
 import { daysFromToday } from './surfaceActions'
 
 const TABLE = 'today_reminders'
+const ACTIONS = 'today_reminder_actions'
 
 function fromRow(row) {
   return {
@@ -100,13 +102,25 @@ export function useReminders(dateISO) {
     load()
   }, [load, visibilityKey])
 
-  // Tick one off from Today. Writes straight to the row; the phone stays the
-  // source of truth, so the next Shortcut run reconciles.
-  const complete = useCallback(async (id) => {
-    setRows((prev) => prev.filter((r) => r.id !== id)) // optimistic
-    const { error } = await supabase.from(TABLE).update({ completed: true }).eq('id', id)
-    if (error) console.error('today_reminders complete', error)
-  }, [])
+  // Tick one off from Today. Marks the row completed (so it stays hidden here)
+  // AND queues a "complete" in today_reminder_actions, which the Mac agent
+  // applies to Apple Reminders on its next run (every 5 min, via remkit).
+  // Without the queued action the next push brought the reminder straight back.
+  // Rows from the id-less era have no sourceId and cannot be written back.
+  const complete = useCallback(
+    async (id) => {
+      const row = rows.find((r) => r.id === id)
+      setRows((prev) => prev.filter((r) => r.id !== id)) // optimistic
+      const { error } = await supabase.from(TABLE).update({ completed: true }).eq('id', id)
+      if (error) console.error('today_reminders complete', error)
+      if (!row?.sourceId) return
+      const { error: qErr } = await supabase
+        .from(ACTIONS)
+        .insert({ action: 'complete', source_id: row.sourceId })
+      if (qErr) console.error('today_reminder_actions complete', qErr)
+    },
+    [rows]
+  )
 
   // Everything here is dated by construction now, so there is one list.
   const sorted = useMemo(() => rows.slice().sort(compare), [rows])

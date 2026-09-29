@@ -33,3 +33,4 @@ supabase/.temp
 
 # Local Claude Code worktrees / settings
 .claude/
+tools/remkit/remkit
