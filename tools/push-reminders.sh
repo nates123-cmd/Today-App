@@ -197,10 +197,16 @@ open_items = read_open()
 # BEFORE the POST ("sending"). A crash or timeout mid-POST leaves "sending" or
 # "uncertain", and such a reminder is never re-posted; it stays open for triage.
 
-PREFIX = re.compile(r"^\s*(stock|cue|course|c|ink|break)\s*(?::|\bcolon\b)\s*(.+)$", re.I | re.S)
+# "cue" may carry a format word ("cue book: Gone Girl"); it stays in the text
+# sent to the router, which uses it to pick the media type.
+PREFIX = re.compile(
+    r"^\s*(stock|cue(?:\s+(?:book|movie|film|show|tv|podcast|album|article))?|course|c|ink|break)"
+    r"\s*(?::|\bcolon\b)\s*(.+)$",
+    re.I | re.S,
+)
 ALIAS = {"c": "course"}
-# Apps the router can place. Add "cue" once the router has a Cue writer.
-ROUTED_APPS = set(filter(None, os.environ.get("ROUTED_APPS", "stock,course,ink,break").split(",")))
+# Apps the router can place.
+ROUTED_APPS = set(filter(None, os.environ.get("ROUTED_APPS", "stock,course,ink,break,cue").split(",")))
 CAPTURE_URL = "https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/capture"
 CAPTURE_KEY = os.environ.get("CAPTURE_KEY", "")
 ROUTE_LEDGER = os.path.join(state_dir, "routed-reminders.json")
@@ -228,7 +234,12 @@ def post_capture(text):
         CAPTURE_URL,
         data=text.encode(),
         method="POST",
-        headers={"x-capture-key": CAPTURE_KEY, "content-type": "text/plain; charset=utf-8"},
+        headers={
+            "x-capture-key": CAPTURE_KEY,
+            "content-type": "text/plain; charset=utf-8",
+            # Provenance: Stock labels these "from Reminders", not "added by voice".
+            "x-capture-src": "reminders",
+        },
     )
     try:
         with urllib.request.urlopen(req, timeout=60) as r:
@@ -247,9 +258,11 @@ def route_prefixed(items):
         m = PREFIX.match(r.get("title") or "")
         if not m:
             continue
-        app = ALIAS.get(m.group(1).lower(), m.group(1).lower())
+        head = " ".join(m.group(1).lower().split())  # "cue  Book" -> "cue book"
+        app = ALIAS.get(head.split()[0], head.split()[0])
+        label = ALIAS.get(head, head)  # full prefix, format word included
         if app in ROUTED_APPS:
-            todo.append((r, app, m.group(2).strip()))
+            todo.append((r, app, label, m.group(2).strip()))
     if not todo:
         return 0
     if not CAPTURE_KEY:
@@ -258,7 +271,7 @@ def route_prefixed(items):
 
     led = load_json(ROUTE_LEDGER)
     routed = 0
-    for r, app, body in todo:
+    for r, app, label, body in todo:
         rid = r["id"]
         entry = led.get(rid, {})
         state = entry.get("state")
@@ -270,7 +283,7 @@ def route_prefixed(items):
         if state != "posted":
             # The prefix is normalised ("c:" -> "course:") and kept in the text:
             # it is the strongest hint the classifier gets.
-            text = "%s: %s" % (app, body)
+            text = "%s: %s" % (label, body)
             if r.get("notes"):
                 text += "\n" + r["notes"][:1000]
             entry = {"state": "sending", "app": app, "at": time.time(), "attempts": entry.get("attempts", 0) + 1}
