@@ -37,6 +37,15 @@ fi
 
 # Only the key the script needs, not the whole app env.
 grep '^VITE_SUPABASE_ANON_KEY=' "$REPO/.env" > "$DEST/.env"
+# Prefix routing posts to the Course+ capture router, which is guarded by the
+# same shared secret the Capture-list poller uses. Without it, prefixed
+# reminders are left open (the log says so) and everything else still syncs.
+CAPTURE_ENV="$HOME/.config/capture-reminders.env"
+if [ -f "$CAPTURE_ENV" ] && grep -q '^CAPTURE_KEY=' "$CAPTURE_ENV"; then
+  grep '^CAPTURE_KEY=' "$CAPTURE_ENV" >> "$DEST/.env"
+else
+  echo "no CAPTURE_KEY in $CAPTURE_ENV: prefix routing stays off"
+fi
 chmod 600 "$DEST/.env"
 
 cat > "$PLIST" <<PLIST_EOF

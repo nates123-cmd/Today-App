@@ -5,7 +5,9 @@
 #   1. DRAIN the write-back queue (today_reminder_actions): ticks made in Today,
 #      and reminders created from elsewhere, are applied to Apple via remkit,
 #      then acked back to the edge function.
-#   2. PUSH the default list's open reminders, each with Apple's identifier, so
+#   2. ROUTE reminders that start with an app prefix ("stock: ...", "cue: ...")
+#      through the Course+ capture router, then complete them in Apple.
+#   3. PUSH the default list's open reminders, each with Apple's identifier, so
 #      reminders-ingest syncs by id (upsert + remove what is no longer open).
 # Draining first means a reminder ticked in Today is already completed in Apple
 # by the time the list is read, so the push does not bring it back.
@@ -45,9 +47,11 @@ mkdir -p "$STATE_DIR"
 exec /usr/bin/python3 - "$REMKIT" "$VITE_SUPABASE_ANON_KEY" "$DRY" "$STATE_DIR" <<'PY'
 import json
 import os
+import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.request
 
 remkit, key, dry, state_dir = sys.argv[1], sys.argv[2], sys.argv[3] == "1", sys.argv[4]
@@ -170,10 +174,131 @@ default = next((l["title"] for l in lists if l.get("default")), None)
 if default is None:
     raise SystemExit("no default Reminders list")
 
-code, open_items, err = rk("list")
-if code != 0 or open_items is None:
-    # Never push on a failed read: an empty batch would wipe the list in Today.
-    raise SystemExit("remkit list failed (%d): %s" % (code, err))
+def read_open():
+    code, items, err = rk("list")
+    if code != 0 or items is None:
+        # Never push on a failed read: an empty batch would wipe the list in Today.
+        raise SystemExit("remkit list failed (%d): %s" % (code, err))
+    return items
+
+
+open_items = read_open()
+
+# --- 2a. prefix routing -------------------------------------------------------
+#
+# A reminder that starts with an app prefix ("stock: low on olive oil",
+# "Cue: Gone Girl") is an explicit instruction, so it is routed with no tap:
+# posted to the Course+ capture router (the same endpoint the watch and the
+# Capture list use), then completed in Apple with the router's receipt as a
+# note. Reminders WITHOUT a prefix are never touched here; they wait for triage.
+#
+# Duplicate safety: the router writes a real record on every POST, so a
+# reminder must never be posted twice. ROUTE_LEDGER records each reminder
+# BEFORE the POST ("sending"). A crash or timeout mid-POST leaves "sending" or
+# "uncertain", and such a reminder is never re-posted; it stays open for triage.
+
+PREFIX = re.compile(r"^\s*(stock|cue|course|c|ink|break)\s*(?::|\bcolon\b)\s*(.+)$", re.I | re.S)
+ALIAS = {"c": "course"}
+# Apps the router can place. Add "cue" once the router has a Cue writer.
+ROUTED_APPS = set(filter(None, os.environ.get("ROUTED_APPS", "stock,course,ink,break").split(",")))
+CAPTURE_URL = "https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/capture"
+CAPTURE_KEY = os.environ.get("CAPTURE_KEY", "")
+ROUTE_LEDGER = os.path.join(state_dir, "routed-reminders.json")
+MAX_ROUTE_ATTEMPTS = 3
+
+
+def load_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def save_json(path, obj):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(obj, f)
+    os.replace(tmp, path)
+
+
+def post_capture(text):
+    """-> ("ok", line) | ("failed", why) [nothing saved] | ("uncertain", why)."""
+    req = urllib.request.Request(
+        CAPTURE_URL,
+        data=text.encode(),
+        method="POST",
+        headers={"x-capture-key": CAPTURE_KEY, "content-type": "text/plain; charset=utf-8"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return "ok", r.read().decode().strip()
+    except urllib.error.HTTPError as exc:
+        # The endpoint answered, so we know what happened: a non-2xx line means
+        # nothing was saved ("Not saved: router error", "Auth failed").
+        return "failed", "%d %s" % (exc.code, exc.read().decode(errors="replace").strip()[:200])
+    except Exception as exc:  # noqa: BLE001 - timeout / network: may or may not have landed
+        return "uncertain", str(exc)[:200]
+
+
+def route_prefixed(items):
+    todo = []
+    for r in items:
+        m = PREFIX.match(r.get("title") or "")
+        if not m:
+            continue
+        app = ALIAS.get(m.group(1).lower(), m.group(1).lower())
+        if app in ROUTED_APPS:
+            todo.append((r, app, m.group(2).strip()))
+    if not todo:
+        return 0
+    if not CAPTURE_KEY:
+        stamp("%d prefixed reminder(s) waiting, but no CAPTURE_KEY in the env" % len(todo))
+        return 0
+
+    led = load_json(ROUTE_LEDGER)
+    routed = 0
+    for r, app, body in todo:
+        rid = r["id"]
+        entry = led.get(rid, {})
+        state = entry.get("state")
+        if state in ("sending", "uncertain", "gave_up"):
+            continue  # never re-post; left open for triage
+        if dry:
+            stamp("would route [%s] %s" % (app, r["title"][:80]))
+            continue
+        if state != "posted":
+            # The prefix is normalised ("c:" -> "course:") and kept in the text:
+            # it is the strongest hint the classifier gets.
+            text = "%s: %s" % (app, body)
+            if r.get("notes"):
+                text += "\n" + r["notes"][:1000]
+            entry = {"state": "sending", "app": app, "at": time.time(), "attempts": entry.get("attempts", 0) + 1}
+            led[rid] = entry
+            save_json(ROUTE_LEDGER, led)
+            outcome, detail = post_capture(text)
+            if outcome == "ok":
+                entry.update(state="posted", line=detail)
+            elif outcome == "failed":
+                entry.update(state="gave_up" if entry["attempts"] >= MAX_ROUTE_ATTEMPTS else "retry", error=detail)
+            else:
+                entry.update(state="uncertain", error=detail)
+            save_json(ROUTE_LEDGER, led)
+            stamp("route [%s] %s -> %s" % (app, r["title"][:60], detail))
+            if outcome != "ok":
+                continue
+        code, _, err = rk("complete", rid, "--note", "Routed: " + entry["line"])
+        if code in (0, 4):
+            entry["state"] = "done"
+            save_json(ROUTE_LEDGER, led)
+            routed += 1
+        else:
+            stamp("routed but could not complete %s: %s (will retry, no re-post)" % (rid, err))
+    return routed
+
+
+if route_prefixed(open_items):
+    open_items = read_open()  # the routed ones are completed now; read again
 
 records = []
 for r in open_items:
