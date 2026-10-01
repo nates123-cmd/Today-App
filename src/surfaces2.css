@@ -1766,3 +1766,54 @@
   align-self: center; padding-right: 12px; flex-shrink: 0;
 }
 .compact-block-count.clear { color: var(--pillar-sunny); }
+
+/* ───────────────── REMINDERS INBOX — undated captures awaiting a tap ─────────
+   Sits under today's calendar in Triage. Same card as .cal-summary; rows reuse
+   the errands strip's title/meta type. Actions are quiet mono text, the one
+   suggested action ("move") gets the accent. */
+
+.rinbox-label { display: flex; justify-content: space-between; align-items: baseline; }
+.rinbox-count { color: var(--ink-secondary); }
+
+.rinbox-row { padding: 10px 0; }
+.rinbox-row + .rinbox-row { border-top: 1px solid var(--divider); }
+
+.rinbox-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.rinbox-btn {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  color: var(--ink-secondary);
+  background: transparent;
+  border: 1px solid var(--divider-strong);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.rinbox-btn:hover { color: var(--ink-primary); border-color: var(--ink-tertiary); }
+.rinbox-btn:disabled { opacity: 0.4; cursor: default; }
+.rinbox-btn-primary { color: var(--accent); border-color: var(--accent); }
+
+.rinbox-picker { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.rinbox-select, .rinbox-input {
+  font: inherit; font-size: 13px;
+  color: var(--ink-primary);
+  background: var(--bg-elevated);
+  border: 1px solid var(--divider-strong);
+  border-radius: 8px;
+  padding: 6px 8px;
+  min-width: 0;
+}
+
+.rinbox-flash {
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  color: var(--ink-secondary);
+  padding: 6px 0 8px;
+  cursor: pointer;
+}
+.rinbox-flash-err { color: var(--pillar-arrow); }
+
+.rinbox-more {
+  margin-top: 6px;
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em;
+  color: var(--ink-tertiary);
+  background: none; border: none; padding: 4px 0; cursor: pointer;
+}

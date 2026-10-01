@@ -17,6 +17,7 @@
 //   remkit list [--list NAME | --all]          open reminders (default list if no flag)
 //   remkit get ID
 //   remkit add TITLE [--list NAME] [--due "YYYY-MM-DD[ HH:MM]"] [--notes TEXT] [--priority N]
+//   remkit update ID --due "YYYY-MM-DD[ HH:MM]"|none
 //   remkit complete ID [--note TEXT]           idempotent; --note is appended to the notes
 //   remkit uncomplete ID
 //
@@ -209,6 +210,24 @@ case "add":
   if let prio = prio {
     guard let p = Int(prio) else { fail("bad --priority: \(prio)", 2) }
     r.priority = p
+  }
+  save(r)
+  emit(json(r))
+
+case "update":
+  // Only --due for now (the triage "Today" button). "--due none" clears it.
+  let due = flag("--due")
+  guard let id = args.first, let due = due else { fail("usage: remkit update ID --due YYYY-MM-DD[ HH:MM]|none", 2) }
+  let r = reminder(id)
+  if due == "none" {
+    r.dueDateComponents = nil
+  } else {
+    let c = parseDue(due)
+    r.dueDateComponents = c
+    if c.hour != nil, let date = Calendar.current.date(from: c) {
+      r.alarms?.forEach { r.removeAlarm($0) }
+      r.addAlarm(EKAlarm(absoluteDate: date))
+    }
   }
   save(r)
   emit(json(r))

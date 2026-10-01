@@ -9,6 +9,7 @@ import { IconCheck } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
 import { surfaceActions } from '../lib/surfaceActions.js'
 import { useReminders, dueLabelFor } from '../lib/useReminders.js'
+import { ReminderInbox } from './ReminderInbox.jsx'
 import { isoDate, addDays } from '../lib/day.js'
 
 const ReactDOM = { createPortal }
@@ -1877,6 +1878,9 @@ export function Triage({
               : <CalEventRow key={r.event.id} event={r.event} hasPrep={r.hasPrep} onRemove={removeCalEvent} />
           )}
         </div>
+
+        {/* Undated Apple Reminders with no app prefix: file, keep, or do today. */}
+        <ReminderInbox />
 
         {order.map((id, idx) => {
           const pillar = pillarsById[id];

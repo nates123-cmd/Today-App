@@ -126,6 +126,16 @@ def apply(a):
             # Deleted on the phone since. Nothing left to do: count it done.
             return {"id": a["id"], "ok": True, "error": "not found in Apple Reminders"}
         return {"id": a["id"], "ok": False, "error": err or "remkit exit %d" % code}
+    if kind == "set_due":
+        due = str(pl.get("due") or "").strip()
+        if not due:
+            return {"id": a["id"], "ok": False, "error": "set_due needs payload.due"}
+        code, _, err = rk("update", sid, "--due", due)
+        if code == 0:
+            return {"id": a["id"], "ok": True}
+        if code == 4:
+            return {"id": a["id"], "ok": True, "error": "not found in Apple Reminders"}
+        return {"id": a["id"], "ok": False, "error": err or "remkit exit %d" % code}
     if kind == "create":
         title = str(pl.get("title") or "").strip()
         if not title:
@@ -334,4 +344,32 @@ if dry:
 
 res = call("POST", body={"list": default, "reminders": records})
 stamp("%d open (%d dated) -> %s" % (len(records), dated, json.dumps(res)))
+
+# --- 3. triage suggestions -----------------------------------------------------
+#
+# Undated reminders with no app prefix are the triage inbox in Today. Ask the
+# Course+ reminder-triage function to classify the ones that have no suggestion
+# yet (it skips the rest and caps classifier calls per request, so a backlog
+# drains over a few runs). Suggest-only: nothing is filed until Nate taps.
+# Runs AFTER the push because the function looks the rows up by source_id.
+TRIAGE_URL = "https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/reminder-triage"
+inbox = [
+    {"id": r["id"], "title": r["title"], "notes": r.get("notes")}
+    for r in records
+    if "due" not in r and not PREFIX.match(r["title"])
+]
+if inbox and CAPTURE_KEY:
+    req = urllib.request.Request(
+        TRIAGE_URL,
+        data=json.dumps({"op": "suggest", "reminders": inbox}).encode(),
+        method="POST",
+        headers={"x-capture-key": CAPTURE_KEY, "content-type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=150) as r:
+            out = json.loads(r.read().decode() or "{}")
+        if out.get("suggested") or out.get("pending"):
+            stamp("triage suggest -> %s" % json.dumps(out))
+    except Exception as exc:  # noqa: BLE001 - suggestions are best-effort
+        stamp("triage suggest failed: %s" % str(exc)[:200])
 PY
