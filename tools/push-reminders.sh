@@ -214,6 +214,16 @@ PREFIX = re.compile(
     r"\s*(?::|\bcolon\b)\s*(.+)$",
     re.I | re.S,
 )
+# "stock" also routes with no colon ("Stock cornstarch"): Siri drops the colon,
+# and a reminder starting with the word "stock" is a pantry item. Only stock:
+# bare "break" / "c" / "course" would grab ordinary reminders ("Break down boxes").
+BARE_PREFIX = re.compile(r"^\s*(stock)\s+(\S.*)$", re.I | re.S)
+
+
+def match_prefix(title):
+    return PREFIX.match(title) or BARE_PREFIX.match(title)
+
+
 ALIAS = {"c": "course"}
 # Apps the router can place.
 ROUTED_APPS = set(filter(None, os.environ.get("ROUTED_APPS", "stock,course,ink,break,cue").split(",")))
@@ -265,7 +275,7 @@ def post_capture(text):
 def route_prefixed(items):
     todo = []
     for r in items:
-        m = PREFIX.match(r.get("title") or "")
+        m = match_prefix(r.get("title") or "")
         if not m:
             continue
         head = " ".join(m.group(1).lower().split())  # "cue  Book" -> "cue book"
@@ -356,7 +366,7 @@ TRIAGE_URL = "https://xsmnfcmtbpeaccnyinkr.supabase.co/functions/v1/reminder-tri
 inbox = [
     {"id": r["id"], "title": r["title"], "notes": r.get("notes")}
     for r in records
-    if "due" not in r and not PREFIX.match(r["title"])
+    if "due" not in r and not match_prefix(r["title"])
 ]
 if inbox and CAPTURE_KEY:
     req = urllib.request.Request(
