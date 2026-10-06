@@ -5,18 +5,26 @@ installed on ANY iPhone (work phone included) without rebuilding it by hand in
 the Shortcuts editor. `All Week Today App.shortcut` is the signed, ready-to-
 install output.
 
-What it does (11 actions):
+What it does (12 actions):
 
-1. Current Date -> Format `yyyy-MM-dd` (Today)
-2. `DELETE ical-ingest?from=<Today>&days=7` (clears the rolling week)
+1. Current Date -> Adjust +1 day -> Format `yyyy-MM-dd` (Tomorrow)
+2. `DELETE ical-ingest?from=<Tomorrow>&days=6` (clears tomorrow..+6)
 3. Find Calendar Events: Start Date is in the next 7 days, Is All Day = false,
    sorted oldest first
 4. Repeat each event: read Start Date / End Date / Title, format both dates as
    `yyyy-MM-dd'T'HH:mm`, `POST ical-ingest {start, end, title}`
 
 The function derives date, decimal hour and duration itself (`parseLocal`), so
-the Shortcut does no arithmetic. `clearMatch` + `sweepStale` run on every POST,
-so a second daily run is safe.
+the Shortcut does no arithmetic.
+
+**Why the DELETE starts tomorrow, not today.** The grab is "next 7 days from
+run time", so a midday run cannot re-send this morning's meetings. Clearing
+today would erase them from the grid until the next 5 AM run. Today is instead
+handled by the function on every POST: `clearMatch` dedupes (date, hour,
+title) and `sweepStale` removes today's not-re-sent rows at `hour >= now`, so a
+canceled or moved afternoon meeting still disappears. That makes several runs a
+day safe: 5 AM, noon, 6 PM is a good set (the 6 PM run lands before the 7 PM
+planning pass).
 
 ## Rebuild
 
@@ -36,9 +44,9 @@ import it without an iCloud relationship to this Mac.
 2. Tap it; Shortcuts opens with "Add Shortcut".
 3. Run it once by hand: allow Calendar access, then allow the request to
    `xsmnfcmtbpeaccnyinkr.supabase.co` when asked.
-4. Automation (cannot be exported): Shortcuts > Automation > + > Time of Day
-   5:00 AM, Daily, Run Immediately, Don't Notify > run "All Week Today App".
-   Add a second one at 5:00 PM if you want the evening refresh.
+4. Automations (cannot be exported): Shortcuts > Automation > + > Time of Day,
+   Daily, Run Immediately, Don't Notify > run "All Week Today App". One each
+   at 5:00 AM, 12:00 PM, 6:00 PM.
 
 ## Test without touching live data
 

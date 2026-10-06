@@ -26,12 +26,18 @@ def headers(json_ct=False):
 def build(base):
     a = []
     d = U(); a.append(act("is.workflow.actions.date", UUID=d))
-    today = U(); a.append(act("is.workflow.actions.format.date", UUID=today,
-        WFDate=ref("Date", d), WFDateFormatStyle="Custom", WFDateFormat="yyyy-MM-dd"))
-    url = f"{base}?from={OBJ}&days=7"
+    # Clear TOMORROW..+6, never today: the grab below is "next 7 days from run
+    # time", so clearing today would erase this morning's meetings on a midday
+    # run. Today is handled by the function (clearMatch dedupe + sweepStale).
+    tom = U(); a.append(act("is.workflow.actions.adjustdate", UUID=tom,
+        WFDate=ref("Date", d), WFAdjustOperation="Add",
+        WFDuration={"Value": {"Magnitude": "1", "Unit": "days"}, "WFSerializationType": "WFQuantityFieldValue"}))
+    tomorrow = U(); a.append(act("is.workflow.actions.format.date", UUID=tomorrow,
+        WFDate=ref("Adjusted Date", tom), WFDateFormatStyle="Custom", WFDateFormat="yyyy-MM-dd"))
+    url = f"{base}?from={OBJ}&days=6"
     a.append(act("is.workflow.actions.downloadurl", UUID=U(), ShowHeaders=True, WFHTTPMethod="DELETE",
         WFHTTPHeaders=headers(),
-        WFURL=tok_str(url, {f"{{{url.index(OBJ)}, 1}}": out("Formatted Date", today)})))
+        WFURL=tok_str(url, {f"{{{url.index(OBJ)}, 1}}": out("Formatted Date", tomorrow)})))
     ev = U(); a.append(act("is.workflow.actions.filter.calendarevents", UUID=ev,
         WFContentItemFilter={"Value": {
             "WFActionParameterFilterPrefix": 1,
