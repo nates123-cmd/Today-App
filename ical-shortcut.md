@@ -43,6 +43,18 @@ That's the whole change. The function:
 It also accepts a batch shape `POST { date, events:[{hour,duration_minutes,
 title,source_id?}] }` (replaces the whole day in one call) if you ever rebuild.
 
+## Installing on another phone (work phone) — use the generated file
+
+Don't rebuild the Shortcut by hand. `tools/ical-shortcut/All Week Today App.shortcut`
+is a signed, ready-to-import copy of the whole thing (7-day grab, range DELETE,
+per-event `{start,end,title}` POST). AirDrop or email it to the phone, tap it,
+"Add Shortcut", run once to grant Calendar + network access, then add the
+5:00 AM automation. `tools/ical-shortcut/README.md` has the details and how to
+regenerate it from `gen.py`.
+
+Only the phone that holds the work Exchange account in native Calendar needs
+it; the Reminders feed runs on the Mac and is unrelated.
+
 ## Tomorrow too — one shortcut, server does the math (recommended)
 
 The Tomorrow tab's Schedule view reads `placed_blocks` for tomorrow's date, so it
