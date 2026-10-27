@@ -93,6 +93,23 @@ function parseLocal(s) {
   return { date: `${y}-${mo}-${d}`, hour: +hh + +mm / 60, mins: +hh * 60 + +mm };
 }
 
+// Outlook marks a cancel by renaming the event, and external invites put tags
+// in front: "Canceled: X", "[External] Canceled: X". The old /^canceled:/ test
+// missed the tagged form, so those rows landed on the grid. Strip leading
+// "[...]" tags before comparing titles so "X" and "[External] X" match.
+const stripTags = (s) => String(s ?? "").replace(/^(?:\s*\[[^\]]*\])+\s*/, "").trim();
+const sameTitle = (a, b) => stripTags(a).toLowerCase() === stripTags(b).toLowerCase();
+// The title the event had before it was canceled, or null if it isn't canceled.
+function canceledBase(title) {
+  const m = stripTags(title).match(/^cancell?ed\s*:\s*(.*)$/i);
+  return m ? m[1].trim() : null;
+}
+
+// Today in the owner's zone, YYYY-MM-DD. Never toISOString: that is the UTC day.
+function todayNY() {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date());
+}
+
 // Build one placed_blocks row from a calendar event, or null if invalid.
 // `fallbackDate` is the day to use when the event doesn't self-date via `start`.
 function normalizeEvent(e, fallbackDate) {
@@ -120,7 +137,7 @@ function normalizeEvent(e, fallbackDate) {
   if (!title) return null;
   // Noise filters: skip canceled meetings and multi-day blocks (>= 1 day, e.g.
   // travel/trip events) — they swallow the day grid and aren't schedulable.
-  if (/^cancell?ed:/i.test(title)) return null;
+  if (canceledBase(title) != null) return null;
   if (duration >= 1440) return null;
   const row = {
     user_id: OWNER_ID,
@@ -197,6 +214,62 @@ async function sweepStale(date) {
       `&updated_at=lt.${encodeURIComponent(cutoff)}`,
     { method: "DELETE", headers: { Prefer: "return=minimal" } },
   );
+}
+
+// Rows written within RUN_GRACE_MIN belong to the run in progress; anything
+// older came from an earlier run. A Shortcut run posts every event in about a
+// minute, so 10 minutes separates runs without splitting one.
+const RUN_GRACE_MIN = 10;
+const runCutoff = () => new Date(Date.now() - RUN_GRACE_MIN * 60_000).toISOString();
+
+// Newest run wins, per day, without trusting the up-front range DELETE.
+//
+// On 2026-10-27 the 1 PM run's range DELETE never landed, so tomorrow showed a
+// moved 1:1 at both its old and new hour until sweepStale's 36h caught up.
+// Called after each insert:
+//   - same title at another hour, from an earlier run -> the meeting moved
+//     within the day; drop the old slot. Two same-title meetings in one day
+//     both come from THIS run, so they survive.
+//   - a FUTURE day: anything from an earlier run is gone from the calendar
+//     (moved to another day, or deleted). This run re-sends every live event
+//     on that day, so the day ends up exactly what the calendar says.
+// Today is exempt from the second rule: a midday run's "next 7 days" grab
+// starts at run time, so it cannot re-send this morning's meetings.
+// A run that dies partway leaves the rest of a touched day empty until the
+// next run; the range DELETE it already sends up front has the same exposure.
+async function sweepRun(row) {
+  const existing = await sbFetch(
+    `/placed_blocks?select=id,hour,title,updated_at&date=eq.${row.date}&source=eq.ical&user_id=eq.${OWNER_ID}` +
+      `&updated_at=lt.${encodeURIComponent(runCutoff())}`,
+  );
+  const future = row.date > todayNY();
+  const gone = (existing ?? []).filter((r) =>
+    future || (sameTitle(r.title, row.title) && Number(r.hour) !== Number(row.hour))
+  );
+  if (!gone.length) return;
+  await sbFetch(`/placed_blocks?id=in.(${gone.map((r) => r.id).join(",")})`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  });
+}
+
+// A canceled event still sits on the calendar under its new "Canceled: X"
+// title, so it keeps being posted. Use that post to remove X (and any stored
+// copy of the canceled title itself) from the day.
+async function clearCanceled(date, base) {
+  const existing = await sbFetch(
+    `/placed_blocks?select=id,title&date=eq.${date}&source=eq.ical&user_id=eq.${OWNER_ID}`,
+  );
+  const gone = (existing ?? []).filter((r) => {
+    const b = canceledBase(r.title);
+    return sameTitle(b ?? r.title, base);
+  });
+  if (!gone.length) return 0;
+  await sbFetch(`/placed_blocks?id=in.(${gone.map((r) => r.id).join(",")})`, {
+    method: "DELETE",
+    headers: { Prefer: "return=minimal" },
+  });
+  return gone.length;
 }
 
 async function clearDay(date) {
@@ -306,6 +379,15 @@ Deno.serve(async (req) => {
   // a time and (in practice) re-runs without a preceding DELETE, so a blind
   // insert duplicates the whole day on every run. clearMatch makes each insert
   // idempotent on (date, hour, title).
+  const base = canceledBase(typeof body?.title === "string" ? body.title : "");
+  if (base != null) {
+    // 200, not 400: a canceled event is expected noise, not a broken call.
+    let removed = 0;
+    try { if (base) removed = await clearCanceled(date, base); } catch (e) {
+      console.error("clearCanceled failed for " + date + ": " + e.message);
+    }
+    return json({ date, inserted: 0, skipped: 1, canceled: true, removed, mode: "single" });
+  }
   const row = normalizeEvent(body, date);
   if (!row) return json({ error: "invalid event (need hour, positive duration_minutes, title)" }, 400);
   try {
@@ -322,9 +404,10 @@ Deno.serve(async (req) => {
   // must not turn a successful ingest into a 502 and make the Shortcut look
   // broken. Batch mode does not need it — it clears each day outright.
   try {
+    await sweepRun(row);
     await sweepStale(row.date);
   } catch (e) {
-    console.error("sweepStale failed for " + row.date + ": " + e.message);
+    console.error("sweep failed for " + row.date + ": " + e.message);
   }
   return json({ date, inserted: 1, mode: "single" });
 });
