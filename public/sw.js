@@ -1,4 +1,4 @@
-const CACHE = 'today-v18'
+const CACHE = 'today-v19'
 
 // index.html, resolved against the SW scope (/Today-App/ on Pages, / in dev).
 const shellUrl = () => new URL('index.html', self.registration.scope).toString()
@@ -30,6 +30,11 @@ self.addEventListener('fetch', (event) => {
   // at hashed asset filenames the latest deploy already deleted — the app then
   // loads as a blank white page for up to ten minutes after every push. The
   // cached copy is only a fallback for being offline.
+  // The MCP connector's login page is a standalone HTML file, not an app route.
+  // Without this exemption the navigation below would answer it with the app
+  // shell and the claude.ai connector sign-in would open Today instead.
+  if (req.mode === 'navigate' && url.pathname.endsWith('/mcp-login.html')) return
+
   if (req.mode === 'navigate') {
     event.respondWith(
       (async () => {
