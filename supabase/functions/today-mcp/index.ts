@@ -243,7 +243,7 @@ const ops: Record<string, (sb: any, a: any) => Promise<any>> = {
     return { removed: { title: row.title, date: row.date, start: fmtHour(Number(row.hour)) }, items_removed: count || 0 }
   },
 
-  async add_block_item(sb, { block_id, label, cp_task_id }) {
+  async add_block_item(sb, { block_id, label, cp_task_id, est_minutes }) {
     const block = await getBlock(sb, block_id)
     let text = String(label || '').trim()
     if (cp_task_id) {
@@ -259,18 +259,21 @@ const ops: Record<string, (sb: any, a: any) => Promise<any>> = {
     const { data, error } = await sb.from('block_items').insert({
       block_id, date: block.date, position, label: text,
       source: cp_task_id ? 'course' : 'manual', cp_task_id: cp_task_id || null,
+      est_minutes: est_minutes > 0 ? Math.round(est_minutes) : null,
     }).select().single()
     must(error)
     return { added: { id: data.id, label: data.label, block: block.title, start: fmtHour(Number(block.hour)) } }
   },
 
-  async update_block_item(sb, { item_id, label, done, block_id }) {
+  async update_block_item(sb, { item_id, label, done, block_id, est_minutes }) {
     if (!item_id) throw new Error('item_id is required')
     const { data: it, error: e0 } = await sb.from('block_items').select('*').eq('id', item_id).maybeSingle()
     must(e0)
     if (!it) throw new Error(`No block item with id ${item_id}`)
     const patch: any = {}
     if (label != null) patch.label = String(label).trim()
+    // 0 clears the length, which drops the step off the block's sub-schedule.
+    if (est_minutes != null) patch.est_minutes = est_minutes > 0 ? Math.round(est_minutes) : null
     if (block_id != null) { await getBlock(sb, block_id); patch.block_id = block_id }
     if (done != null) {
       patch.done = !!done
@@ -336,8 +339,8 @@ const TOOLS = [
   { name: 'place_block', write: true, description: "Put a time block on a day's schedule. Use pillar for focus/work blocks (e.g. pillar 'arrow', title 'Deep work: CSA plan'); otherwise type routine|adhoc|prep. Refuses to overlap an existing block unless allow_overlap is true. proposed: true drops it as a suggestion Nate accepts in the app instead of committing it.", inputSchema: S({ date: DATE, start: TIME, duration_minutes: num, title: str, pillar: PILLAR, type: { type: 'string', enum: ['routine', 'adhoc', 'prep'] }, proposed: bool, allow_overlap: bool }, ['start', 'duration_minutes']) },
   { name: 'update_block', write: true, description: 'Move, resize, rename or re-date a block Nate (or you) placed, or accept a proposed one (accept: true). Calendar meetings are read-only and will be refused.', inputSchema: S({ block_id: ID, date: DATE, start: TIME, duration_minutes: num, title: str, accept: bool }, ['block_id']) },
   { name: 'remove_block', write: true, description: 'Delete a planned/proposed/routine block and its checklist items. Calendar meetings are refused. Confirm with Nate before removing a block that has items.', inputSchema: S({ block_id: ID }, ['block_id']) },
-  { name: 'add_block_item', write: true, description: "Add a checklist item inside a block: what Nate will actually work on in it. Pass cp_task_id (from list_tasks) to link a Course+ task; checking it off in Today then completes it in Course+. label alone makes a manual item.", inputSchema: S({ block_id: ID, label: str, cp_task_id: str }, ['block_id']) },
-  { name: 'update_block_item', write: true, description: 'Rename a checklist item, move it to another block (block_id), or set done. Marking a Course+-linked item done also completes the Course+ task.', inputSchema: S({ item_id: ID, label: str, done: bool, block_id: ID }, ['item_id']) },
+  { name: 'add_block_item', write: true, description: "Add a checklist item inside a block: what Nate will actually work on in it. Pass cp_task_id (from list_tasks) to link a Course+ task; checking it off in Today then completes it in Course+. label alone makes a manual item. est_minutes gives it a length: items with a length form the block's sub-schedule, timed in order from the block's start.", inputSchema: S({ block_id: ID, label: str, cp_task_id: str, est_minutes: num }, ['block_id']) },
+  { name: 'update_block_item', write: true, description: 'Rename a checklist item, move it to another block (block_id), set its length in minutes (est_minutes, 0 clears), or set done. Marking a Course+-linked item done also completes the Course+ task.', inputSchema: S({ item_id: ID, label: str, done: bool, block_id: ID, est_minutes: num }, ['item_id']) },
   { name: 'remove_block_item', write: true, description: 'Delete one checklist item from a block. Does not touch the Course+ task.', inputSchema: S({ item_id: ID }, ['item_id']) },
   { name: 'add_reminder', write: true, description: "Queue an Apple Reminder (default list) with an optional date and time, e.g. a nudge at 4:15pm to go outside. Delivered by the Mac agent within ~5 minutes.", inputSchema: S({ title: str, date: DATE, time: TIME, notes: str }, ['title']) },
 ].filter((t) => !(READONLY && t.write))

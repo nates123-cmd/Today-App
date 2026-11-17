@@ -12,6 +12,7 @@
 
 import React from 'react'
 import { CAL_EVENTS, PILLARS, ROUTINES } from '../data.js'
+import { layoutSchedule, fmtClock } from '../lib/subSchedule.js'
 
 const HOUR_PX = 38; // visual height per hour
 const STEP_MIN = 15; // smallest schedulable increment
@@ -32,7 +33,7 @@ export function Scheduling({
   embedded = false,
   showNow = !embedded,
   title = 'Schedule',
-  subtitle = 'drag · tap to expand · pull bottom edge to resize',
+  subtitle = 'drag · tap a block to plan it · pull bottom edge to resize',
 }) {
   const hours = React.useMemo(() => {
     const arr = [];for (let h = FIRST_HOUR; h <= LAST_HOUR; h++) arr.push(h);return arr;
@@ -228,7 +229,14 @@ export function Scheduling({
     const wasTap = !drag.moved && Date.now() - dragStartRef.current.t < TAP_TIME;
 
     if (wasTap) {
-      if (drag.source === 'placed' && drag.blockId) {
+      const tapped = drag.source === 'placed' && drag.blockId
+        ? placed.find((b) => b.id === drag.blockId) : null;
+      if (tapped && onOpenBlock && tapped.type !== 'prep') {
+        // Tap = zoom into the block (its checklist / sub-schedule). Length is
+        // set with the bottom-edge handle, so the old tap-to-cycle is only the
+        // fallback when no drill-in is wired.
+        onOpenBlock(tapped);
+      } else if (drag.source === 'placed' && drag.blockId) {
         setPlaced((prev) => prev.map((b) => {
           if (b.id !== drag.blockId) return b;
           if (b.type === 'meeting' || b.type === 'routine') return b;
@@ -420,7 +428,10 @@ export function Scheduling({
                     blockId: b.id
                   };
                   startDrag('placed', payload, e);
-                } : undefined}>
+                } : undefined}
+                // Meetings are not draggable, so they never reach the drag
+                // system's tap branch — give them the same tap-to-open here.
+                onClick={!draggable && !isPrep && onOpenBlock ? () => onOpenBlock(b) : undefined}>
                   {isPrep ? (
                     <div className="sched-block-prep-line">
                       <span className="sched-block-prep-tag">PREP</span>
@@ -435,6 +446,35 @@ export function Scheduling({
                         b.type === 'adhoc' ? `ad-hoc · ${b.duration}m` :
                         `${b.duration}m`}
                       </div>
+                      {(() => {
+                        // The sub-schedule, printed inside the block when it
+                        // is tall enough to hold at least one line. Times are
+                        // derived from where the block sits right now, so they
+                        // track a drag or resize with no extra work.
+                        const steps = itemCounts?.get(b.id)?.steps;
+                        const room = Math.floor((height - 30) / 12);
+                        if (!steps?.length || room < 1) return null;
+                        const rows = layoutSchedule(steps, b).rows;
+                        if (!rows.length) return null;
+                        // One line of room: show the first step alone — the
+                        // count badge already says how many there are.
+                        const shown = rows.length <= room ? rows
+                          : room === 1 ? rows.slice(0, 1) : rows.slice(0, room - 1);
+                        const showMore = room > 1 && shown.length < rows.length;
+                        return (
+                          <div className="sched-block-steps">
+                            {shown.map((r) => (
+                              <div key={r.item.id} className={`sched-block-step ${r.item.done ? 'done' : ''}`}>
+                                <span className="sched-block-step-time">{fmtClock(r.startHour)}</span>
+                                <span className="sched-block-step-label">{r.item.label}</span>
+                              </div>
+                            ))}
+                            {showMore && (
+                              <div className="sched-block-step more">+{rows.length - shown.length} more</div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </>
                   )}
                   {draggable &&

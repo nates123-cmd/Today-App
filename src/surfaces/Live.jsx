@@ -4,6 +4,7 @@
 
 import React from 'react'
 import { IconArrowUR } from '../icons.jsx'
+import { activeStep } from '../lib/subSchedule.js'
 
 // Routines that deep-link into another suite app when tapped from Live.
 // Keyed by source_id (the routine slug from Scheduling's dock).
@@ -30,7 +31,8 @@ function fmtTime(h) {
   return `${hr12}:${mm}${ap}`;
 }
 
-function ActiveBlockCard({ block, nowDecimal, onOpenBlock, counts }) {
+function ActiveBlockCard({ block, nowDecimal, onOpenBlock, counts, items, view }) {
+  const step = activeStep(block, items, view, nowDecimal);
   const endDecimal = block.hour + block.duration / 60;
   const minsLeft = Math.max(0, Math.round((endDecimal - nowDecimal) * 60));
   const colorClass = block.pillar || block.type || 'open';
@@ -68,6 +70,29 @@ function ActiveBlockCard({ block, nowDecimal, onOpenBlock, counts }) {
       </div>
 
       <div className="active-card-title">{block.title}</div>
+
+      {step && (
+        <div className="active-step">
+          {step.label && (
+            <div className="active-step-now">
+              <span className="active-step-tag">now</span>
+              <span className="active-step-label">{step.label}</span>
+            </div>
+          )}
+          {step.meta && <div className="active-step-meta">{step.meta}</div>}
+          {step.next && (
+            <div className="active-step-next">
+              <span className="active-step-tag">next</span>
+              <span className="active-step-label">{step.next}</span>
+            </div>
+          )}
+          {step.behind > 0 && (
+            <div className="active-step-behind">
+              {step.behind} earlier step{step.behind === 1 ? '' : 's'} not ticked off
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="active-card-footer">
         <span>{fmtTime(block.hour)} – {fmtTime(endDecimal)}</span>
@@ -124,7 +149,7 @@ function CompactBlock({ block, isPast, onOpenBlock, counts }) {
   );
 }
 
-export function Live({ placed: placedProp, onOpenBlock, itemCounts }) {
+export function Live({ placed: placedProp, onOpenBlock, itemCounts, itemsByBlock, viewByBlock }) {
   const PLACED = placedProp ?? [];
 
   // Real wall-clock time, re-derived each minute so the past / active /
@@ -191,7 +216,8 @@ export function Live({ placed: placedProp, onOpenBlock, itemCounts }) {
 
         {/* Active block — hero card */}
         {activeBlock ? (
-          <ActiveBlockCard block={activeBlock} nowDecimal={nowDecimal} onOpenBlock={onOpenBlock} counts={itemCounts?.get(activeBlock.id)} />
+          <ActiveBlockCard block={activeBlock} nowDecimal={nowDecimal} onOpenBlock={onOpenBlock} counts={itemCounts?.get(activeBlock.id)}
+            items={itemsByBlock?.get(activeBlock.id)} view={viewByBlock?.get(activeBlock.id)} />
         ) : (
           <div className="active-card empty">
             <div className="active-card-pillar">

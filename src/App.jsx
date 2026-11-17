@@ -11,10 +11,17 @@ import { useBlockItems } from './lib/useBlockItems.js'
 import { todayISO, isPlanningTomorrow, addDays, isoDate } from './lib/day.js'
 
 // blockId -> { total, done } for the badge on each block in the grid.
-function countByBlock(byBlock) {
+// `steps` rides along for blocks left in Schedule view so the grid can print
+// the sub-schedule inside the block. It is the raw items, not laid-out times:
+// only the grid knows where the block currently sits, and it re-derives them.
+function countByBlock(byBlock, viewByBlock) {
   const m = new Map()
   for (const [blockId, list] of byBlock) {
-    m.set(blockId, { total: list.length, done: list.filter((i) => i.done).length })
+    m.set(blockId, {
+      total: list.length,
+      done: list.filter((i) => i.done).length,
+      steps: viewByBlock?.get(blockId) === 'schedule' ? list : null,
+    })
   }
   return m
 }
@@ -68,10 +75,13 @@ export default function App() {
   const [tomorrowISO] = useState(() => isoDate(addDays(1)))
   const blockItemsTomorrow = useBlockItems(tomorrowISO)
 
-  const itemCounts = useMemo(() => countByBlock(blockItems.byBlock), [blockItems.byBlock])
+  const itemCounts = useMemo(
+    () => countByBlock(blockItems.byBlock, blockItems.viewByBlock),
+    [blockItems.byBlock, blockItems.viewByBlock]
+  )
   const itemCountsTomorrow = useMemo(
-    () => countByBlock(blockItemsTomorrow.byBlock),
-    [blockItemsTomorrow.byBlock]
+    () => countByBlock(blockItemsTomorrow.byBlock, blockItemsTomorrow.viewByBlock),
+    [blockItemsTomorrow.byBlock, blockItemsTomorrow.viewByBlock]
   )
 
   const pagerRef = useRef(null)
@@ -159,6 +169,8 @@ export default function App() {
             placed={placed}
             onOpenBlock={(b) => setOpenBlock({ block: b, scope: 'today' })}
             itemCounts={itemCounts}
+            itemsByBlock={blockItems.byBlock}
+            viewByBlock={blockItems.viewByBlock}
           />
         </div>
 
@@ -212,6 +224,7 @@ export default function App() {
             block={openBlock.block}
             placed={openBlock.scope === 'tomorrow' ? null : placed}
             api={openBlock.scope === 'tomorrow' ? blockItemsTomorrow : blockItems}
+            isToday={openBlock.scope !== 'tomorrow'}
             onClose={() => setOpenBlock(null)}
           />
         )}

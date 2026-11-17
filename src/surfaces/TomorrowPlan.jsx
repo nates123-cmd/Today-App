@@ -183,7 +183,7 @@ export function TomorrowPlan({ onOpenBlock, itemCounts }) {
           onOpenBlock={onOpenBlock}
           itemCounts={itemCounts}
           title="Tomorrow"
-          subtitle="drag from the dock · tap a block's badge to assign work · pull bottom edge to resize"
+          subtitle="drag from the dock · tap a block to plan it · pull bottom edge to resize"
         />
       </>
     )

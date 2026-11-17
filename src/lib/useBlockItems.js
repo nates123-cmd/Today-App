@@ -17,6 +17,7 @@ import { todayISO } from './day'
 
 const TABLE = 'block_items'
 const RECUR = 'recurring_items'
+const BLOCKS = 'placed_blocks'
 
 function fromRow(r) {
   return {
@@ -70,6 +71,11 @@ export function useBlockItems(dateArg) {
   const date = dateArg ?? todayISO()
   const [items, setItems] = useState([])
   const [recurring, setRecurring] = useState([])
+  // blockId -> 'list' | 'schedule'. Read from placed_blocks.items_view, but
+  // owned here rather than by usePlacedBlocks: the sheet that flips it is
+  // handed this hook, not the grid's setPlaced, and the grid's own writes
+  // never send the column, so neither side can clobber the other.
+  const [views, setViews] = useState(() => new Map())
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const visibilityKey = useVisibilityKey()
@@ -86,7 +92,8 @@ export function useBlockItems(dateArg) {
     Promise.all([
       supabase.from(TABLE).select('*').eq('date', date).order('position', { ascending: true }),
       supabase.from(RECUR).select('*'),
-    ]).then(([itemsRes, recurRes]) => {
+      supabase.from(BLOCKS).select('id, items_view').eq('date', date),
+    ]).then(([itemsRes, recurRes, viewsRes]) => {
       if (cancelled) return
       if (itemsRes.error) {
         setError(itemsRes.error.message)
@@ -95,6 +102,11 @@ export function useBlockItems(dateArg) {
       }
       setItems((itemsRes.data ?? []).map(fromRow))
       if (!recurRes.error) setRecurring(recurRes.data ?? [])
+      // An error here means the items_view column is not there yet; keep
+      // whatever was chosen this session rather than resetting it.
+      if (!viewsRes.error) {
+        setViews(new Map((viewsRes.data ?? []).map((r) => [r.id, r.items_view ?? 'list'])))
+      }
       setLoading(false)
     })
     return () => {
@@ -126,7 +138,7 @@ export function useBlockItems(dateArg) {
   )
 
   const addItem = useCallback(
-    async (blockId, { label, source = 'manual', cpTaskId = null }) => {
+    async (blockId, { label, source = 'manual', cpTaskId = null, estMinutes = null }) => {
       const text = (label || '').trim()
       if (!text || !blockId) return null
       const existing = (byBlock.get(blockId) ?? [])
@@ -145,7 +157,8 @@ export function useBlockItems(dateArg) {
           cp_task_id: cpTaskId,
           label: text,
           recurring_key: known ? key : null,
-          est_minutes: known?.est_minutes ?? null,
+          // A recurring item's remembered estimate beats the caller's default.
+          est_minutes: known?.est_minutes ?? estMinutes ?? null,
         })
         .select()
         .single()
@@ -159,6 +172,34 @@ export function useBlockItems(dateArg) {
     },
     [byBlock, date, recurringByKey, bump]
   )
+
+  // Rewrite `position` for a block from an ordered list of ids. In Schedule
+  // view order IS the timeline, so this is how a step gets rescheduled.
+  const reorder = useCallback(
+    async (blockId, orderedIds) => {
+      const rank = new Map(orderedIds.map((id, i) => [id, i]))
+      setItems((prev) =>
+        prev.map((i) =>
+          i.blockId === blockId && rank.has(i.id) ? { ...i, position: rank.get(i.id) } : i
+        )
+      )
+      const moved = (byBlock.get(blockId) ?? []).filter(
+        (i) => rank.has(i.id) && rank.get(i.id) !== i.position
+      )
+      const results = await Promise.all(
+        moved.map((i) => supabase.from(TABLE).update({ position: rank.get(i.id) }).eq('id', i.id))
+      )
+      for (const r of results) if (r.error) console.error('block_items reorder', r.error)
+      bump()
+    },
+    [byBlock, bump]
+  )
+
+  const setBlockView = useCallback(async (blockId, view) => {
+    setViews((prev) => new Map(prev).set(blockId, view))
+    const { error } = await supabase.from(BLOCKS).update({ items_view: view }).eq('id', blockId)
+    if (error) console.error('placed_blocks items_view', error)
+  }, [])
 
   const removeItem = useCallback(
     async (id) => {
@@ -345,6 +386,9 @@ export function useBlockItems(dateArg) {
     assignedTaskIds,
     recurring,
     recurringByKey,
+    viewByBlock: views,
+    setBlockView,
+    reorder,
     loading,
     error,
     addItem,

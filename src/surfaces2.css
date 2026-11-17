@@ -1817,3 +1817,176 @@
   color: var(--ink-tertiary);
   background: none; border: none; padding: 4px 0; cursor: pointer;
 }
+
+/* ───────────────── SUB-SCHEDULE — the block's items on the clock ─────────────
+   Same rows as the checklist, with a time column on the left and a drag grip on
+   the right. Times are derived from order, so the grip is the reschedule. */
+
+/* The sheet opens out of the block that was tapped rather than sliding up from
+   the bottom edge — the gesture is "zoom into this block". */
+.pblock-overlay.visible {
+  animation: pblock-zoom 0.26s cubic-bezier(.2,.8,.2,1);
+  transform-origin: 50% 40%;
+}
+@keyframes pblock-zoom {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pblock-overlay.visible { animation: none; }
+}
+
+.bview-toggle {
+  display: flex; gap: 2px;
+  background: var(--bg-surface);
+  border-radius: 9px; padding: 3px;
+  margin-bottom: 16px;
+}
+.bview-tab {
+  flex: 1; border: none; background: transparent;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+  padding: 8px 0; border-radius: 7px; cursor: pointer;
+}
+.bview-tab.on { background: var(--bg-elevated); color: var(--ink-primary); }
+
+.bsched-summary {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+  margin: 0 2px 10px;
+}
+.bsched-summary.over { color: var(--accent-warn, #d4644a); }
+
+.bitem.sched .bitem-row { gap: 10px; padding-left: 12px; }
+.bitem-time {
+  width: 44px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.04em; color: var(--ink-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.bitem-time.spills { color: var(--accent-warn, #d4644a); }
+/* The step the clock is in (today only). */
+.bitem.sched.now { box-shadow: inset 3px 0 0 var(--accent); }
+.bitem.sched.now .bitem-time { color: var(--accent); }
+/* Behind plan: its slot is over and it is not ticked. Times do not move. */
+.bitem.sched.late .bitem-time { color: var(--accent-warn, #d4644a); }
+.bitem.sched.dragging {
+  background: var(--bg-elevated);
+  box-shadow: 0 8px 22px -10px rgba(0,0,0,0.55);
+  position: relative; z-index: 2;
+}
+
+.bitem-dur {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.06em; color: var(--ink-secondary);
+  background: var(--bg-elevated); border: none;
+  border-radius: 5px; padding: 5px 7px; cursor: pointer;
+  flex-shrink: 0;
+}
+.bitem-dur:active { opacity: 0.6; }
+.bitem-grip {
+  flex-shrink: 0; width: 22px; height: 28px;
+  margin-right: -4px;
+  display: flex; flex-direction: column; justify-content: center; gap: 3px;
+  cursor: grab; touch-action: none;
+}
+.bitem-grip span {
+  display: block; height: 1.5px; width: 14px; margin: 0 auto;
+  background: var(--ink-faint); border-radius: 1px;
+}
+.bitem.sched.dragging .bitem-grip span { background: var(--accent); }
+
+.sched-free {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px dashed var(--divider-strong);
+  border-radius: 12px;
+  padding: 10px 14px 10px 12px;
+  margin-bottom: 8px;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+.sched-free .bitem-time { color: var(--ink-tertiary); text-transform: none; }
+.sched-free-label { flex: 1; }
+.sched-free-min { letter-spacing: 0.06em; text-transform: none; }
+
+.sched-endline {
+  display: flex; align-items: center; gap: 8px;
+  margin: 4px 2px 12px;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--accent-warn, #d4644a);
+}
+.sched-endline-rule { flex: 1; height: 1px; background: currentColor; opacity: 0.5; }
+
+.sched-unsized { margin: 10px 0 14px; }
+.sched-unsized-head {
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+  margin: 0 2px 8px; min-height: 26px;
+}
+.sched-unsized-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 2px;
+  border-top: 1px solid var(--divider);
+}
+.sched-unsized-label {
+  flex: 1; font-size: 13px; line-height: 1.35;
+  color: var(--ink-secondary);
+}
+.sched-unsized-row.done .sched-unsized-label {
+  color: var(--ink-tertiary); text-decoration: line-through;
+}
+
+/* Live — the step inside the active block. */
+.active-step {
+  border-top: 1px solid var(--divider);
+  padding-top: 12px; margin-bottom: 2px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.active-step-now, .active-step-next {
+  display: flex; align-items: baseline; gap: 10px;
+}
+.active-step-tag {
+  width: 30px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 9px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+}
+.active-step-now .active-step-tag { color: var(--accent); }
+.active-step-now .active-step-label { font-size: 15px; color: var(--ink-primary); line-height: 1.3; }
+.active-step-next .active-step-label { font-size: 13px; color: var(--ink-secondary); line-height: 1.3; }
+.active-step-meta, .active-step-behind {
+  margin-left: 40px;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.06em; color: var(--ink-tertiary);
+}
+.active-step-behind { color: var(--accent-warn, #d4644a); }
+
+/* The sub-schedule printed inside a block on the grid (Schedule-view blocks
+   only, and only when the block is tall enough). Read-only: tap the block. */
+.sched-block-steps { margin-top: 3px; pointer-events: none; }
+.sched-block-step {
+  display: flex; gap: 7px; align-items: baseline;
+  height: 12px; line-height: 12px;
+  font-size: 10px; color: var(--ink-secondary);
+  white-space: nowrap; overflow: hidden;
+  padding-right: 52px;
+}
+.sched-block-step-time {
+  width: 34px; flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--ink-tertiary); font-variant-numeric: tabular-nums;
+}
+.sched-block-step-label { overflow: hidden; text-overflow: ellipsis; }
+.sched-block-step.done .sched-block-step-label {
+  text-decoration: line-through; color: var(--ink-tertiary);
+}
+.sched-block-step.more {
+  font-family: var(--font-mono); font-size: 9px;
+  color: var(--ink-tertiary); padding-left: 41px;
+}

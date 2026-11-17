@@ -14,6 +14,7 @@ import './surfaces2.css'
 import './shell.css'
 import { BlockView, CoursePicker } from './surfaces/BlockView.jsx'
 import { Scheduling } from './surfaces/Scheduling.jsx'
+import { Live } from './surfaces/Live.jsx'
 import { recurringKey } from './lib/useBlockItems.js'
 
 const BLOCK = {
@@ -25,9 +26,32 @@ const BLOCK = {
   pillar: 'arrow',
 }
 
+// A 90-minute block planned as a sub-schedule, the way it would be laid out
+// the night before on the Tomorrow grid.
+const SCHED_BLOCK = {
+  id: 'b3',
+  type: 'arrow',
+  hour: 13,
+  duration: 90,
+  title: 'Arrow',
+  pillar: 'arrow',
+}
+
 const PLACED = [
   BLOCK,
   { id: 'b2', type: 'meeting', hour: 10, duration: 60, title: 'SGS Projects — Global Tracking Weekly Call' },
+  SCHED_BLOCK,
+]
+
+const step = (id, position, label, estMinutes, extra = {}) => ({
+  id, blockId: 'b3', position, source: 'manual', cpTaskId: null, label, done: false,
+  recurringKey: null, estMinutes, startedAt: null, elapsedSeconds: 0, ...extra,
+})
+const SCHED_SEED = [
+  step('s1', 0, 'Draft the renewal outline', 30),
+  step('s2', 1, 'Pull Q3 numbers from the tracker', 15, { source: 'course', cpTaskId: 't2' }),
+  step('s3', 2, 'Write section 2', 25),
+  step('s4', 3, 'Send to Jason for a read', null),
 ]
 
 const SEED = [
@@ -73,7 +97,8 @@ const PILLAR_FIXTURE = {
 
 // In-memory stand-in for useBlockItems: same surface area, no network.
 function useFakeApi() {
-  const [items, setItems] = useState(SEED)
+  const [items, setItems] = useState([...SEED, ...SCHED_SEED])
+  const [views, setViews] = useState(() => new Map([['b3', 'schedule']]))
   const [recurring, setRecurring] = useState(RECUR)
 
   const byBlock = useMemo(() => {
@@ -83,6 +108,7 @@ function useFakeApi() {
       arr.push(it)
       m.set(it.blockId, arr)
     }
+    for (const arr of m.values()) arr.sort((a, b) => a.position - b.position)
     return m
   }, [items])
 
@@ -98,11 +124,19 @@ function useFakeApi() {
     assignedTaskIds: new Set(items.filter((i) => i.cpTaskId).map((i) => i.cpTaskId)),
     recurring,
     recurringByKey: new Map(recurring.map((r) => [r.key, r])),
-    addItem: (blockId, { label, source = 'manual', cpTaskId = null }) =>
+    viewByBlock: views,
+    setBlockView: (blockId, view) => setViews((prev) => new Map(prev).set(blockId, view)),
+    reorder: (blockId, orderedIds) => {
+      const rank = new Map(orderedIds.map((id, i) => [id, i]))
+      setItems((prev) =>
+        prev.map((i) => (i.blockId === blockId && rank.has(i.id) ? { ...i, position: rank.get(i.id) } : i))
+      )
+    },
+    addItem: (blockId, { label, source = 'manual', cpTaskId = null, estMinutes = null }) =>
       setItems((prev) => [
         ...prev,
         { id: crypto.randomUUID(), blockId, position: prev.length, source, cpTaskId,
-          label, done: false, recurringKey: null, estMinutes: null, startedAt: null, elapsedSeconds: 0 },
+          label, done: false, recurringKey: null, estMinutes, startedAt: null, elapsedSeconds: 0 },
       ]),
     removeItem: (id) => setItems((prev) => prev.filter((i) => i.id !== id)),
     toggleDone: (item) =>
@@ -138,10 +172,14 @@ function GridPreview({ api }) {
   const itemCounts = useMemo(() => {
     const m = new Map()
     for (const [blockId, list] of api.byBlock) {
-      m.set(blockId, { total: list.length, done: list.filter((i) => i.done).length })
+      m.set(blockId, {
+        total: list.length,
+        done: list.filter((i) => i.done).length,
+        steps: api.viewByBlock.get(blockId) === 'schedule' ? list : null,
+      })
     }
     return m
-  }, [api.byBlock])
+  }, [api.byBlock, api.viewByBlock])
 
   return (
     <>
@@ -153,7 +191,7 @@ function GridPreview({ api }) {
         onOpenBlock={setOpenBlock}
         itemCounts={itemCounts}
         title="Tomorrow"
-        subtitle="drag from the dock · tap a block's badge to assign work"
+        subtitle="drag from the dock · tap a block to plan it · pull bottom edge to resize"
       />
       {/* App renders this at its root, outside the transformed .day-overlay.
           `placed` is null for a tomorrow block so the "next event in N min"
@@ -165,14 +203,42 @@ function GridPreview({ api }) {
   )
 }
 
+// Live, with a block wrapped around the current time so the active card and the
+// "now" step can be seen. The block starts 40 minutes ago: step one's slot is
+// over (late), step two is the one the clock is in.
+function LivePreview({ api }) {
+  const [openBlock, setOpenBlock] = useState(null)
+  const now = new Date()
+  const start = Math.round((now.getHours() + now.getMinutes() / 60 - 40 / 60) * 60) / 60
+  const liveBlock = useMemo(() => ({ ...SCHED_BLOCK, hour: start }), [start])
+  const placed = [liveBlock]
+  const itemCounts = new Map(
+    [...api.byBlock].map(([id, list]) => [id, { total: list.length, done: list.filter((i) => i.done).length }])
+  )
+  return (
+    <>
+      <Live
+        placed={placed}
+        onOpenBlock={() => setOpenBlock(liveBlock)}
+        itemCounts={itemCounts}
+        itemsByBlock={api.byBlock}
+        viewByBlock={api.viewByBlock}
+      />
+      {openBlock && (
+        <BlockView block={openBlock} placed={placed} api={api} isToday onClose={() => setOpenBlock(null)} />
+      )}
+    </>
+  )
+}
+
 function Preview() {
   const api = useFakeApi()
-  const [mode, setMode] = useState('grid')
+  const [mode, setMode] = useState(() => new URLSearchParams(location.search).get('mode') || 'grid')
 
   return (
     <div className="stage">
       <div style={{ position: 'fixed', top: 8, left: 8, zIndex: 999, display: 'flex', gap: 6 }}>
-        {['grid', 'sheet'].map((m) => (
+        {['grid', 'schedule', 'live', 'sheet'].map((m) => (
           <button
             key={m}
             onClick={() => setMode(m)}
@@ -191,6 +257,10 @@ function Preview() {
       </div>
       <div className="phone">
         {mode === 'grid' ? <GridPreview api={api} /> : null}
+        {mode === 'schedule' ? (
+          <BlockView block={SCHED_BLOCK} placed={null} api={api} onClose={() => setMode('grid')} />
+        ) : null}
+        {mode === 'live' ? <LivePreview api={api} /> : null}
         {mode === 'sheet' ? (
           <>
             <BlockView block={BLOCK} placed={PLACED} api={api} onClose={() => {}} />
