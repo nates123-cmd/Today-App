@@ -13,6 +13,7 @@
 import React from 'react'
 import { CAL_EVENTS, PILLARS, ROUTINES } from '../data.js'
 import { layoutSchedule, fmtClock } from '../lib/subSchedule.js'
+import { IconMinus, IconPlus } from '../icons.jsx'
 import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, clampZoom, readZoom, saveZoom, anchorDrift } from '../lib/schedZoom.js'
 
 const STEP_MIN = 15; // smallest schedulable increment
@@ -526,9 +527,9 @@ export function Scheduling({
           <div className="sched-subtitle">{subtitle}</div>
           <div className="sched-zoom">
             <button className="sched-zoom-btn" onClick={() => zoomTo((px) => px / ZOOM_STEP)}
-                    disabled={hourPx <= ZOOM_MIN} title="zoom out" aria-label="zoom out">−</button>
+                    disabled={hourPx <= ZOOM_MIN} title="zoom out" aria-label="zoom out"><IconMinus w={13} /></button>
             <button className="sched-zoom-btn" onClick={() => zoomTo((px) => px * ZOOM_STEP)}
-                    disabled={hourPx >= ZOOM_MAX} title="zoom in" aria-label="zoom in">+</button>
+                    disabled={hourPx >= ZOOM_MAX} title="zoom in" aria-label="zoom in"><IconPlus w={13} /></button>
           </div>
         </div>
 
