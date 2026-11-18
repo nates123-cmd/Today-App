@@ -13,10 +13,10 @@
 import React from 'react'
 import { CAL_EVENTS, PILLARS, ROUTINES } from '../data.js'
 import { layoutSchedule, fmtClock } from '../lib/subSchedule.js'
+import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, clampZoom, readZoom, saveZoom, anchorDrift } from '../lib/schedZoom.js'
 
-const HOUR_PX = 38; // visual height per hour
 const STEP_MIN = 15; // smallest schedulable increment
-const STEP_PX = HOUR_PX * (STEP_MIN / 60);
+const EDGE_PX = 40; // drag this close to the grid's top/bottom edge to auto-scroll
 const FIRST_HOUR = 8;
 const LAST_HOUR = 18;
 const TOTAL_HOURS = LAST_HOUR - FIRST_HOUR + 1;
@@ -71,6 +71,107 @@ export function Scheduling({
   const [adHocText, setAdHocText] = React.useState('');
   const dragStartRef = React.useRef(null);
   const calRef = React.useRef(null);
+  const scrollRef = React.useRef(null);
+
+  // ─────────── Zoom ───────────
+  // `hourPx` is the visual height of one hour. Pinch (touch), ctrl/cmd + wheel
+  // (trackpad pinch) or the +/- buttons change it; the grid scrolls inside
+  // `.hour-cal-scroll` once it outgrows the box. The choice is remembered.
+  const [hourPx, setHourPx] = React.useState(() => readZoom());
+  const stepPx = hourPx * (STEP_MIN / 60);
+  const hourPxRef = React.useRef(hourPx);     // latest requested scale
+  const renderedPxRef = React.useRef(hourPx); // scale the DOM is currently drawn at
+  const zoomAnchorRef = React.useRef(null);   // { hoursAbove, y } to hold still across a zoom
+  const [anchorTick, setAnchorTick] = React.useState(0);
+  const pinchEndRef = React.useRef(0);
+  const pointerYRef = React.useRef(null);
+  const resizeRef = React.useRef(null);
+
+  // Zoom to `next` px/hour keeping the moment under `clientY` (default: the
+  // middle of the visible grid) where it is on screen.
+  const zoomTo = (next, clientY) => {
+    const px = clampZoom(typeof next === 'function' ? next(hourPxRef.current) : next);
+    if (px === hourPxRef.current) return;
+    const cal = calRef.current, sc = scrollRef.current;
+    if (cal && sc) {
+      const r = sc.getBoundingClientRect();
+      const y = clientY ?? r.top + r.height / 2;
+      zoomAnchorRef.current = {
+        hoursAbove: (y - cal.getBoundingClientRect().top) / renderedPxRef.current, y };
+    }
+    hourPxRef.current = px;
+    setHourPx(px);
+  };
+
+  // After the grid re-renders at the new scale, scroll so the anchor has not moved.
+  React.useLayoutEffect(() => {
+    renderedPxRef.current = hourPx;
+    hourPxRef.current = hourPx;
+    const a = zoomAnchorRef.current;
+    zoomAnchorRef.current = null;
+    const cal = calRef.current, sc = scrollRef.current;
+    if (!a || !cal || !sc) return;
+    sc.scrollTop += anchorDrift(cal.getBoundingClientRect().top, a.hoursAbove, hourPx, a.y);
+  }, [hourPx, anchorTick]);
+  React.useEffect(() => { saveZoom(hourPx); }, [hourPx]);
+
+  // Pinch + trackpad zoom. Registered by hand because React's touch / wheel
+  // listeners are passive and these have to preventDefault the browser's own
+  // page zoom. Two fingers also pan: the midpoint is the anchor, so moving
+  // both fingers together scrolls the grid, even when they sit on blocks.
+  React.useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc) return;
+    let pinch = null;
+    const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY) || 1;
+    const midY = (t) => (t[0].clientY + t[1].clientY) / 2;
+    const onTouchStart = (e) => {
+      if (e.touches.length !== 2 || !calRef.current) { pinch = null; return; }
+      // A second finger means "zoom", not "move this block": drop any drag the
+      // first finger started.
+      setDrag(null); setResize(null);
+      dragStartRef.current = null; resizeRef.current = null;
+      pinch = {
+        dist: span(e.touches),
+        px: hourPxRef.current,
+        hoursAbove: (midY(e.touches) - calRef.current.getBoundingClientRect().top) / renderedPxRef.current,
+      };
+      if (e.cancelable) e.preventDefault();
+    };
+    const onTouchMove = (e) => {
+      if (!pinch || e.touches.length !== 2) return;
+      if (e.cancelable) e.preventDefault();
+      const px = clampZoom(pinch.px * span(e.touches) / pinch.dist);
+      zoomAnchorRef.current = { hoursAbove: pinch.hoursAbove, y: midY(e.touches) };
+      hourPxRef.current = px;
+      setHourPx(px);
+      setAnchorTick((n) => n + 1); // re-anchor even when only the midpoint moved
+    };
+    const onTouchEnd = (e) => {
+      if (pinch && e.touches.length < 2) { pinch = null; pinchEndRef.current = Date.now(); }
+    };
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return; // plain wheel = scroll
+      e.preventDefault();
+      zoomTo((px) => px * Math.exp(-e.deltaY * 0.01), e.clientY);
+    };
+    const onGesture = (e) => e.preventDefault(); // Safari's own pinch-to-zoom-the-page
+    sc.addEventListener('touchstart', onTouchStart, { passive: false });
+    sc.addEventListener('touchmove', onTouchMove, { passive: false });
+    sc.addEventListener('touchend', onTouchEnd);
+    sc.addEventListener('touchcancel', onTouchEnd);
+    sc.addEventListener('wheel', onWheel, { passive: false });
+    sc.addEventListener('gesturestart', onGesture);
+    return () => {
+      sc.removeEventListener('touchstart', onTouchStart);
+      sc.removeEventListener('touchmove', onTouchMove);
+      sc.removeEventListener('touchend', onTouchEnd);
+      sc.removeEventListener('touchcancel', onTouchEnd);
+      sc.removeEventListener('wheel', onWheel);
+      sc.removeEventListener('gesturestart', onGesture);
+    };
+    // zoomTo only touches refs and stable setters, so one registration is enough.
+  }, []);
 
   // Wall-clock time for the "now" indicator on the grid. Ticks every minute
   // and on visibility return so the bar stays accurate without remounting.
@@ -87,7 +188,16 @@ export function Scheduling({
   }, []);
   const nowDecimal = now.getHours() + now.getMinutes() / 60;
   const nowVisible = showNow && nowDecimal >= FIRST_HOUR && nowDecimal <= LAST_HOUR + 1;
-  const nowTop = (nowDecimal - FIRST_HOUR) * HOUR_PX;
+  const nowTop = (nowDecimal - FIRST_HOUR) * hourPx;
+
+  // Opening a zoomed-in day: start with "now" in view instead of 8a.
+  React.useEffect(() => {
+    const sc = scrollRef.current;
+    if (!sc || !showNow || sc.scrollHeight <= sc.clientHeight) return;
+    const h = new Date().getHours() + new Date().getMinutes() / 60;
+    sc.scrollTop = (h - FIRST_HOUR) * hourPxRef.current - sc.clientHeight / 3;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Listen for prep-block additions from Triage's calendar long-press.
   // placed_blocks.id must be a UUID (DB constraint), so generate one here
@@ -197,7 +307,7 @@ export function Scheduling({
   const yToHour = (clientY) => {
     const r = calRef.current.getBoundingClientRect();
     const y = clientY - r.top;
-    const steps = Math.round(y / STEP_PX);
+    const steps = Math.round(y / stepPx);
     return FIRST_HOUR + steps * (STEP_MIN / 60);
   };
 
@@ -218,6 +328,7 @@ export function Scheduling({
   const moveDrag = (e) => {
     if (!drag) return;
     if (dragStartRef.current && e.pointerId !== dragStartRef.current.pointerId) return;
+    pointerYRef.current = e.clientY;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
     const moved = Math.hypot(dx, dy) > TAP_DIST;
@@ -300,18 +411,60 @@ export function Scheduling({
     if (e.target.setPointerCapture) {
       try {e.target.setPointerCapture(e.pointerId);} catch {}
     }
-    setResize({ blockId: block.id, originalDuration: block.duration, startY: e.clientY,
-      pointerId: e.pointerId });
+    // startScroll: the grid may scroll under a held finger (edge auto-scroll),
+    // and that travel counts toward the new length just like finger travel.
+    const r = { blockId: block.id, originalDuration: block.duration, startY: e.clientY,
+      startScroll: scrollRef.current?.scrollTop ?? 0, pointerId: e.pointerId };
+    pointerYRef.current = e.clientY;
+    resizeRef.current = r;
+    setResize(r);
+  };
+  const applyResize = (r, clientY) => {
+    const dy = clientY - r.startY + ((scrollRef.current?.scrollTop ?? 0) - r.startScroll);
+    const steps = Math.round(dy / (hourPxRef.current * (STEP_MIN / 60)));
+    const newDur = Math.max(STEP_MIN, r.originalDuration + steps * STEP_MIN);
+    setPlaced((prev) => prev.map((b) => b.id === r.blockId ? { ...b, duration: newDur } : b));
   };
   const moveResize = (e) => {
     if (!resize) return;
     if (e.pointerId !== resize.pointerId) return;
-    const dy = e.clientY - resize.startY;
-    const steps = Math.round(dy / STEP_PX);
-    const newDur = Math.max(STEP_MIN, resize.originalDuration + steps * STEP_MIN);
-    setPlaced((prev) => prev.map((b) => b.id === resize.blockId ? { ...b, duration: newDur } : b));
+    pointerYRef.current = e.clientY;
+    applyResize(resize, e.clientY);
   };
-  const endResize = () => {setResize(null);};
+  const endResize = () => {resizeRef.current = null;setResize(null);};
+
+  // ─────────── Edge auto-scroll ───────────
+  // Zoomed in, the day is taller than the box, so a block held near the top or
+  // bottom edge scrolls the grid under it. A still finger sends no pointermove,
+  // so the loop re-applies the resize / re-renders the drop preview itself.
+  const autoScrollOn = Boolean(drag?.moved || resize);
+  React.useEffect(() => {
+    if (!autoScrollOn) return;
+    let raf;
+    const tick = () => {
+      const sc = scrollRef.current, y = pointerYRef.current;
+      if (sc && y != null) {
+        const r = sc.getBoundingClientRect();
+        let v = 0;
+        if (y < r.top + EDGE_PX) v = -Math.min(1, (r.top + EDGE_PX - y) / EDGE_PX);
+        // Not past the bottom edge: the dock sits right below, and a finger
+        // still down there is picking a block up, not asking to scroll.
+        else if (y > r.bottom - EDGE_PX && y <= r.bottom + 8) v = Math.min(1, (y - (r.bottom - EDGE_PX)) / EDGE_PX);
+        if (v) {
+          const before = sc.scrollTop;
+          sc.scrollTop += v * 6;
+          if (sc.scrollTop !== before) {
+            if (resizeRef.current) applyResize(resizeRef.current, y);
+            else setDrag((d) => d ? { ...d } : d);
+          }
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoScrollOn]);
 
   // ─────────── Window-level pointer listeners ───────────
   React.useEffect(() => {
@@ -332,6 +485,7 @@ export function Scheduling({
   // ─────────── Ad-hoc create ───────────
   const onCalendarClick = (e) => {
     if (drag || resize) return;
+    if (Date.now() - pinchEndRef.current < 400) return; // finger lifting off a pinch
     if (e.target.closest('.sched-block-abs')) return;
     if (e.target.closest('.adhoc-input-wrap')) return;
     const h = yToHour(e.clientY);
@@ -368,20 +522,28 @@ export function Scheduling({
           <div className="sched-title">{title}</div>
           <div className="sched-meta">8a — 6p</div>
         </div>
-        <div className="sched-subtitle">{subtitle}</div>
+        <div className="sched-subrow">
+          <div className="sched-subtitle">{subtitle}</div>
+          <div className="sched-zoom">
+            <button className="sched-zoom-btn" onClick={() => zoomTo((px) => px / ZOOM_STEP)}
+                    disabled={hourPx <= ZOOM_MIN} title="zoom out" aria-label="zoom out">−</button>
+            <button className="sched-zoom-btn" onClick={() => zoomTo((px) => px * ZOOM_STEP)}
+                    disabled={hourPx >= ZOOM_MAX} title="zoom in" aria-label="zoom in">+</button>
+          </div>
+        </div>
 
-        <div className="hour-cal-scroll">
+        <div className="hour-cal-scroll" ref={scrollRef}>
           <div className="hour-cal" ref={calRef}
-          style={{ height: TOTAL_HOURS * HOUR_PX, position: 'relative' }}
+          style={{ height: TOTAL_HOURS * hourPx, position: 'relative' }}
           onClick={onCalendarClick}>
             {/* Hour gridlines */}
             {hours.map((h, i) =>
             <div className="hour-line" key={h}
-            style={{ position: 'absolute', top: i * HOUR_PX, left: 0, right: 0,
-              height: HOUR_PX, borderTop: i === 0 ? 'none' : '1px solid var(--divider)' }}>
+            style={{ position: 'absolute', top: i * hourPx, left: 0, right: 0,
+              height: hourPx, borderTop: i === 0 ? 'none' : '1px solid var(--divider)' }}>
                 <div className="hour-label-abs">{fmtHour(h)}{h < 12 ? 'a' : 'p'}</div>
                 {/* Half-hour mark */}
-                <div style={{ position: 'absolute', top: HOUR_PX / 2, left: 44, right: 4,
+                <div style={{ position: 'absolute', top: hourPx / 2, left: 44, right: 4,
                 height: 1, borderTop: '1px dashed var(--divider)', opacity: 0.55 }}></div>
               </div>
             )}
@@ -397,8 +559,8 @@ export function Scheduling({
 
             {/* Placed blocks (absolutely positioned) */}
             {placed.map((b) => {
-              const top = (b.hour - FIRST_HOUR) * HOUR_PX;
-              const height = b.duration / 60 * HOUR_PX;
+              const top = (b.hour - FIRST_HOUR) * hourPx;
+              const height = b.duration / 60 * hourPx;
               // Prep is tied to its meeting's start time — moving / resizing
               // it independently would desync them, so it's not draggable.
               const draggable = b.type !== 'meeting' && b.type !== 'prep';
@@ -417,7 +579,7 @@ export function Scheduling({
               return (
                 <div key={b.id}
                 className={`sched-block-abs ${b.type} ${isThisDragging ? 'dragging' : ''} ${isThisResizing ? 'resizing' : ''}`}
-                style={{ top, height: Math.max(STEP_PX, height) - 2,
+                style={{ top, height: Math.max(stepPx, height) - 2,
                   cursor: draggable ? 'grab' : 'default',
                   opacity: isThisDragging ? 0.4 : 1 }}
                 onPointerDown={draggable ? (e) => {
@@ -515,8 +677,8 @@ export function Scheduling({
               const duration = drag.source === 'dock' ? 30 :
               drag.source === 'dock-routine' ? drag.duration :
               placedBlock?.duration || 30;
-              const top = (clamped - FIRST_HOUR) * HOUR_PX;
-              const height = duration / 60 * HOUR_PX;
+              const top = (clamped - FIRST_HOUR) * hourPx;
+              const height = duration / 60 * hourPx;
               const conflict = placed.some((b) =>
               b.id !== drag.blockId && b.type === 'meeting' &&
               rangesOverlap(clamped, clamped + duration / 60, b.hour, b.hour + b.duration / 60)
@@ -526,7 +688,7 @@ export function Scheduling({
               drag.pillarId;
               return (
                 <div className={`sched-block-abs drop-preview ${type} ${conflict ? 'conflict' : ''}`}
-                style={{ top, height: Math.max(STEP_PX, height) - 2 }}>
+                style={{ top, height: Math.max(stepPx, height) - 2 }}>
                   <div className="sched-block-title">
                     {conflict ? '✕ overlaps meeting' : drag.name || placedBlock?.title || ''}
                   </div>
@@ -540,8 +702,8 @@ export function Scheduling({
             {/* Ad-hoc inline input */}
             {adHocHour != null &&
             <div className="sched-block-abs adhoc-ghost"
-            style={{ top: (adHocHour - FIRST_HOUR) * HOUR_PX,
-              height: HOUR_PX * 0.5 }}>
+            style={{ top: (adHocHour - FIRST_HOUR) * hourPx,
+              height: hourPx * 0.5 }}>
                 <div className="adhoc-input-wrap">
                   <input className="adhoc-input"
                 autoFocus value={adHocText}
