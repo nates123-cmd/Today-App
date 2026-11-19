@@ -1658,7 +1658,7 @@
   letter-spacing: 0.14em; text-transform: uppercase;
   color: var(--ink-tertiary); margin-right: 2px;
 }
-.bitem-est-row, .bitem-timer-row {
+.bitem-est-row, .bitem-timer-row, .bitem-move-row {
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
 .bitem-chip {
@@ -1892,7 +1892,7 @@
 .bitem.sched.now .bitem-time { color: var(--accent); }
 /* Behind plan: its slot is over and it is not ticked. Times do not move. */
 .bitem.sched.late .bitem-time { color: var(--accent-warn, #d4644a); }
-.bitem.sched.dragging {
+.bitem.dragging {
   background: var(--bg-elevated);
   box-shadow: 0 8px 22px -10px rgba(0,0,0,0.55);
   position: relative; z-index: 2;
@@ -1916,7 +1916,7 @@
   display: block; height: 1.5px; width: 14px; margin: 0 auto;
   background: var(--ink-faint); border-radius: 1px;
 }
-.bitem.sched.dragging .bitem-grip span { background: var(--accent); }
+.bitem.dragging .bitem-grip span { background: var(--accent); }
 
 .sched-free {
   display: flex; align-items: center; gap: 10px;
