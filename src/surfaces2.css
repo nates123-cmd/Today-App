@@ -25,11 +25,28 @@
   letter-spacing: 0.15em; text-transform: uppercase;
   color: var(--ink-faint); margin-bottom: 12px;
 }
+/* Subtitle + zoom buttons share a row; the row owns the bottom gap. */
+.sched-subrow {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 12px; margin-bottom: 12px;
+}
+.sched-subrow .sched-subtitle { margin-bottom: 0; min-width: 0; }
+.sched-zoom { display: flex; gap: 6px; flex-shrink: 0; }
+.sched-zoom-btn {
+  width: 30px; height: 26px;
+  border: 1px solid var(--divider-strong); border-radius: 7px;
+  background: var(--bg-elevated); color: var(--ink-secondary);
+  display: flex; align-items: center; justify-content: center;
+  line-height: 0; cursor: pointer; padding: 0;
+}
+.sched-zoom-btn:disabled { opacity: 0.35; cursor: default; }
 
 /* Scroll container so the hour calendar fills available space */
 .hour-cal-scroll {
   flex: 1; min-height: 0;
   overflow-y: auto; overflow-x: hidden;
+  /* One finger scrolls; two fingers are ours (pinch = zoom the day, not the page). */
+  touch-action: pan-y;
   background: var(--bg-surface); border-radius: 12px;
   margin-bottom: 10px;
   padding: 8px 0;
@@ -1496,6 +1513,9 @@
 .scheduling-embedded { display: block; }
 .scheduling-embedded .scheduling { height: auto; padding: 0; }
 .scheduling-embedded .sched-header { display: none; }
+/* Zoomed in, the day would push the dock far off screen and nothing could be
+   dragged from it. Cap the grid so it scrolls in place with the dock below. */
+.scheduling-embedded .hour-cal-scroll { max-height: 62vh; max-height: 62dvh; }
 .scheduling-embedded .sched-dock {
   position: static;
   margin-top: 16px;

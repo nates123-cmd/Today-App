@@ -173,6 +173,7 @@ export const IconPlus = (p) => (
     }
   />
 )
+export const IconMinus = (p) => <Icon {...p} d={<path d="M5 12h14" />} />
 
 // Per-item timing. A stopwatch reduced to its geometry — dial, crown, and a
 // single hand held off-vertical so it reads as counting rather than as a clock
