@@ -18,8 +18,11 @@ import { ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, clampZoom, readZoom, saveZoom, anchorDri
 
 const STEP_MIN = 15; // smallest schedulable increment
 const EDGE_PX = 40; // drag this close to the grid's top/bottom edge to auto-scroll
-const FIRST_HOUR = 8;
-const LAST_HOUR = 18;
+// The grid is the whole day, midnight to midnight, so an early start or a late
+// night can be planned. It opens scrolled to OPEN_HOUR, the usual start.
+const FIRST_HOUR = 0;
+const LAST_HOUR = 23;
+const OPEN_HOUR = 8;
 const TOTAL_HOURS = LAST_HOUR - FIRST_HOUR + 1;
 
 export function Scheduling({
@@ -191,12 +194,18 @@ export function Scheduling({
   const nowVisible = showNow && nowDecimal >= FIRST_HOUR && nowDecimal <= LAST_HOUR + 1;
   const nowTop = (nowDecimal - FIRST_HOUR) * hourPx;
 
-  // Opening a zoomed-in day: start with "now" in view instead of 8a.
+  // Where the day opens: 8a at the top. On today's grid, if "now" would be off
+  // screen from there (before 8a, or late in a zoomed-in day), open on now.
   React.useEffect(() => {
     const sc = scrollRef.current;
-    if (!sc || !showNow || sc.scrollHeight <= sc.clientHeight) return;
-    const h = new Date().getHours() + new Date().getMinutes() / 60;
-    sc.scrollTop = (h - FIRST_HOUR) * hourPxRef.current - sc.clientHeight / 3;
+    if (!sc) return;
+    const px = hourPxRef.current;
+    let top = (OPEN_HOUR - FIRST_HOUR) * px;
+    if (showNow) {
+      const nowY = (new Date().getHours() + new Date().getMinutes() / 60 - FIRST_HOUR) * px;
+      if (nowY < top || nowY > top + sc.clientHeight - px) top = nowY - sc.clientHeight / 3;
+    }
+    sc.scrollTop = top;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -521,7 +530,7 @@ export function Scheduling({
       <div className="scheduling">
         <div className="sched-header">
           <div className="sched-title">{title}</div>
-          <div className="sched-meta">8a — 6p</div>
+          <div className="sched-meta">all day · opens at 8a</div>
         </div>
         <div className="sched-subrow">
           <div className="sched-subtitle">{subtitle}</div>
