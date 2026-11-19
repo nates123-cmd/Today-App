@@ -180,7 +180,7 @@ export function TomorrowPlan({ onOpenBlock, itemCounts }) {
           placed={placed}
           setPlaced={setPlaced}
           remainingMinsByPillar={timeBank}
-          onOpenBlock={onOpenBlock}
+          onOpenBlock={onOpenBlock ? (b) => onOpenBlock(b, placed) : undefined}
           itemCounts={itemCounts}
           title="Tomorrow"
           subtitle="drag from the dock · tap a block to plan it · pull bottom edge to resize"

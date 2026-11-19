@@ -209,7 +209,7 @@ export default function App() {
         <DayOverlay
           kind={dayOverlay}
           onClose={() => setDayOverlay(null)}
-          onOpenBlock={(b) => setOpenBlock({ block: b, scope: 'tomorrow' })}
+          onOpenBlock={(b, dayBlocks) => setOpenBlock({ block: b, scope: 'tomorrow', dayBlocks })}
           itemCounts={itemCountsTomorrow}
         />
 
@@ -223,6 +223,9 @@ export default function App() {
           <BlockView
             block={openBlock.block}
             placed={openBlock.scope === 'tomorrow' ? null : placed}
+            // The day's other blocks, so a task can be moved between them.
+            // Tomorrow's live in TomorrowPlan, which sends them along on open.
+            dayBlocks={openBlock.scope === 'tomorrow' ? openBlock.dayBlocks : placed}
             api={openBlock.scope === 'tomorrow' ? blockItemsTomorrow : blockItems}
             isToday={openBlock.scope !== 'tomorrow'}
             onClose={() => setOpenBlock(null)}

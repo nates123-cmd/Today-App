@@ -104,7 +104,11 @@ function FocusTimer() {
 // `sched` is set only in Schedule view: { time, late, spills, now, gripProps,
 // dragging, rowRef }. It adds the clock column and the drag grip and drops the
 // row furniture that view has no room for; the panel underneath is identical.
-function AssignedItem({ item, api, recurDef, expanded, onExpand, sched = null }) {
+//
+// `grip` is the List view's reorder handle: { gripProps, dragging, rowRef }.
+// `moveTargets` are the day's other blocks ({ id, label }) this item can go to.
+function AssignedItem({ item, api, recurDef, expanded, onExpand, sched = null, grip = null, moveTargets = [] }) {
+  const [moving, setMoving] = React.useState(false)
   // A running stopwatch needs a per-second repaint; a stopped one does not, so
   // the interval only exists while something is actually ticking.
   const running = !!item.startedAt
@@ -124,8 +128,8 @@ function AssignedItem({ item, api, recurDef, expanded, onExpand, sched = null })
 
   return (
     <div
-      ref={sched?.rowRef}
-      className={`bitem ${item.done ? 'done' : ''} ${sched ? 'sched' : ''} ${sched?.now ? 'now' : ''} ${sched?.late ? 'late' : ''} ${sched?.dragging ? 'dragging' : ''}`}
+      ref={sched?.rowRef ?? grip?.rowRef}
+      className={`bitem ${item.done ? 'done' : ''} ${sched ? 'sched' : ''} ${sched?.now ? 'now' : ''} ${sched?.late ? 'late' : ''} ${sched?.dragging || grip?.dragging ? 'dragging' : ''}`}
     >
       <div className="bitem-row">
         {sched && (
@@ -158,6 +162,11 @@ function AssignedItem({ item, api, recurDef, expanded, onExpand, sched = null })
           >
             {running ? <IconPause w={13} /> : <IconStopwatch w={15} />}
           </button>
+        )}
+        {!sched && grip && (
+          <div className="bitem-grip" aria-label="drag to reorder" {...grip.gripProps}>
+            <span></span><span></span><span></span>
+          </div>
         )}
         {sched && (
           <>
@@ -221,8 +230,28 @@ function AssignedItem({ item, api, recurDef, expanded, onExpand, sched = null })
                 {over ? '+' : '−'}{fmtDuration(Math.abs(elapsed - estSec))} vs est
               </span>
             )}
+            {moveTargets.length > 0 && api.moveItem && (
+              <button
+                className={`bitem-chip ${moving ? 'on' : ''}`}
+                onClick={() => setMoving((m) => !m)}
+                aria-expanded={moving}
+              >
+                move
+              </button>
+            )}
             <button className="bitem-chip danger" onClick={() => api.removeItem(item.id)}>remove</button>
           </div>
+
+          {moving && (
+            <div className="bitem-move-row">
+              <span className="bitem-panel-label">move to</span>
+              {moveTargets.map((t) => (
+                <button key={t.id} className="bitem-chip" onClick={() => api.moveItem(item, t.id)}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -231,38 +260,26 @@ function AssignedItem({ item, api, recurDef, expanded, onExpand, sched = null })
 
 // ───────────────────────── the sub-schedule ─────────────────────────
 
-function ScheduleView({ block, items, api, isToday, nowDecimal, expandedItem, setExpandedItem }) {
-  // While a grip is held, `dragOrder` is the live order of the sized steps and
-  // the layout is computed from it — so the times on every row re-derive as
-  // the step moves, which is the whole feedback of the gesture.
+// Drag-to-reorder by a row's grip, shared by List and Schedule view. While a
+// grip is held, `dragOrder` is the live order of the draggable ids; the caller
+// renders from it, so rows shuffle under the finger. `gripFor(id, ids, commit)`
+// takes the current order and what to do with the new one on release.
+function useGripReorder() {
   const [dragOrder, setDragOrder] = React.useState(null)
   const [dragId, setDragId] = React.useState(null)
   const startOrder = React.useRef(null)
   const rowEls = React.useRef(new Map())
 
-  const working = React.useMemo(() => {
-    if (!dragOrder) return items
-    const rank = new Map(dragOrder.map((id, i) => [id, i]))
-    return items.map((it) =>
-      rank.has(it.id) ? { ...it, position: rank.get(it.id) } : { ...it, position: 1e6 + it.position }
-    )
-  }, [items, dragOrder])
-
-  const layout = layoutSchedule(working, block)
-  const live = isToday ? scheduleNow(layout, nowDecimal) : null
-  const lateIds = new Set((live?.late ?? []).map((r) => r.item.id))
-  const sizedIds = layout.rows.map((r) => r.item.id)
-
   const stopDrag = () => { setDragId(null); setDragOrder(null); startOrder.current = null }
 
-  const gripFor = (id) => ({
+  const gripFor = (id, ids, commit) => ({
     onPointerDown: (e) => {
       e.preventDefault()
       e.stopPropagation()
       try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* not capturable */ }
-      startOrder.current = sizedIds
+      startOrder.current = ids
       setDragId(id)
-      setDragOrder(sizedIds)
+      setDragOrder(ids)
     },
     onPointerMove: (e) => {
       if (dragId !== id || !dragOrder) return
@@ -283,11 +300,42 @@ function ScheduleView({ block, items, api, isToday, nowDecimal, expandedItem, se
       const order = dragOrder
       const changed = order && order.join() !== (startOrder.current ?? []).join()
       stopDrag()
-      // Unsized steps keep their relative order, after the timeline.
-      if (changed) api.reorder(block.id, [...order, ...layout.unscheduled.map((i) => i.id)])
+      if (changed) commit(order)
     },
     onPointerCancel: stopDrag,
   })
+
+  const rowRef = (id) => (el) => {
+    if (el) rowEls.current.set(id, el)
+    else rowEls.current.delete(id)
+  }
+
+  return { dragOrder, dragId, gripFor, rowRef }
+}
+
+function ScheduleView({ block, items, api, isToday, nowDecimal, expandedItem, setExpandedItem, moveTargets }) {
+  // The layout is computed from the live drag order, so the times on every row
+  // re-derive as the step moves, which is the whole feedback of the gesture.
+  const { dragOrder, dragId, gripFor: gripProps, rowRef } = useGripReorder()
+
+  const working = React.useMemo(() => {
+    if (!dragOrder) return items
+    const rank = new Map(dragOrder.map((id, i) => [id, i]))
+    return items.map((it) =>
+      rank.has(it.id) ? { ...it, position: rank.get(it.id) } : { ...it, position: 1e6 + it.position }
+    )
+  }, [items, dragOrder])
+
+  const layout = layoutSchedule(working, block)
+  const live = isToday ? scheduleNow(layout, nowDecimal) : null
+  const lateIds = new Set((live?.late ?? []).map((r) => r.item.id))
+  const sizedIds = layout.rows.map((r) => r.item.id)
+
+  // Unsized steps keep their relative order, after the timeline.
+  const gripFor = (id) =>
+    gripProps(id, sizedIds, (order) =>
+      api.reorder(block.id, [...order, ...layout.unscheduled.map((i) => i.id)])
+    )
 
   const sizeEvenly = () => {
     const n = layout.unscheduled.length
@@ -340,11 +388,9 @@ function ScheduleView({ block, items, api, isToday, nowDecimal, expandedItem, se
                 now: live?.current?.item.id === row.item.id && !row.item.done,
                 dragging: dragId === row.item.id,
                 gripProps: gripFor(row.item.id),
-                rowRef: (el) => {
-                  if (el) rowEls.current.set(row.item.id, el)
-                  else rowEls.current.delete(row.item.id)
-                },
+                rowRef: rowRef(row.item.id),
               }}
+              moveTargets={moveTargets}
             />
           </React.Fragment>
         ))}
@@ -487,8 +533,12 @@ function nextUpcoming(placed, nowDecimal) {
 //
 // `isToday` turns on the clock-aware parts (the step you should be on, steps
 // you are behind on). A tomorrow block is pure plan and gets neither.
-export function BlockView({ block, placed, api, onClose, isToday = false }) {
+//
+// `dayBlocks` is every block on this block's day; it is what a task can be
+// moved to. (`placed` is today-only and drives the "next up" nudge.)
+export function BlockView({ block, placed, dayBlocks = null, api, onClose, isToday = false }) {
   const { pillars } = usePillars()
+  const listGrip = useGripReorder()
   const [expandedItem, setExpandedItem] = React.useState(null)
   const [draft, setDraft] = React.useState('')
   const inputRef = React.useRef(null)
@@ -512,8 +562,31 @@ export function BlockView({ block, placed, api, onClose, isToday = false }) {
   const colorClass = block.pillar || block.type || 'open'
 
   const items = api.byBlock.get(block.id) ?? []
-  // Done items sink so the top of the list is always what is left.
-  const ordered = [...items].sort((a, b) => (a.done === b.done ? a.position - b.position : a.done ? 1 : -1))
+  // Done items sink so the top of the list is always what is left. What is
+  // left can be dragged into order by its grip; while one is held the list
+  // follows the live drag order.
+  const byPos = (a, b) => a.position - b.position
+  const doneItems = items.filter((i) => i.done).sort(byPos)
+  const openItems = items.filter((i) => !i.done).sort(byPos)
+  const openIds = openItems.map((i) => i.id)
+  const openById = new Map(openItems.map((i) => [i.id, i]))
+  const openShown = (listGrip.dragOrder ?? openIds).map((id) => openById.get(id)).filter(Boolean)
+  const ordered = [...openShown, ...doneItems]
+  const listGripFor = (it) =>
+    it.done || openItems.length < 2
+      ? null
+      : {
+          gripProps: listGrip.gripFor(it.id, openIds, (order) =>
+            api.reorder(block.id, [...order, ...doneItems.map((i) => i.id)])
+          ),
+          dragging: listGrip.dragId === it.id,
+          rowRef: listGrip.rowRef(it.id),
+        }
+
+  const moveTargets = (dayBlocks ?? [])
+    .filter((b) => b.id !== block.id && b.type !== 'prep')
+    .sort((a, b) => a.hour - b.hour)
+    .map((b) => ({ id: b.id, label: `${fmtTime(b.hour)} ${b.title}` }))
   const doneCount = items.filter((i) => i.done).length
 
   const now = new Date()
@@ -577,6 +650,7 @@ export function BlockView({ block, placed, api, onClose, isToday = false }) {
             nowDecimal={nowDecimal}
             expandedItem={expandedItem}
             setExpandedItem={setExpandedItem}
+            moveTargets={moveTargets}
           />
         ) : (
         <div className="bitem-list">
@@ -593,6 +667,8 @@ export function BlockView({ block, placed, api, onClose, isToday = false }) {
               recurDef={it.recurringKey ? api.recurringByKey.get(it.recurringKey) : null}
               expanded={expandedItem === it.id}
               onExpand={() => setExpandedItem((cur) => (cur === it.id ? null : it.id))}
+              grip={listGripFor(it)}
+              moveTargets={moveTargets}
             />
           ))}
         </div>

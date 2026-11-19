@@ -132,6 +132,11 @@ function useFakeApi() {
         prev.map((i) => (i.blockId === blockId && rank.has(i.id) ? { ...i, position: rank.get(i.id) } : i))
       )
     },
+    moveItem: (item, toBlockId) => {
+      const dest = byBlock.get(toBlockId) ?? []
+      const position = dest.length ? Math.max(...dest.map((i) => i.position)) + 1 : 0
+      patch(item.id, { blockId: toBlockId, position })
+    },
     addItem: (blockId, { label, source = 'manual', cpTaskId = null, estMinutes = null }) =>
       setItems((prev) => [
         ...prev,
@@ -197,7 +202,7 @@ function GridPreview({ api }) {
           `placed` is null for a tomorrow block so the "next event in N min"
           nudge — a today concept — stays hidden. */}
       {openBlock && (
-        <BlockView block={openBlock} placed={null} api={api} onClose={() => setOpenBlock(null)} />
+        <BlockView block={openBlock} placed={null} dayBlocks={placed} api={api} onClose={() => setOpenBlock(null)} />
       )}
     </>
   )
@@ -225,7 +230,7 @@ function LivePreview({ api }) {
         viewByBlock={api.viewByBlock}
       />
       {openBlock && (
-        <BlockView block={openBlock} placed={placed} api={api} isToday onClose={() => setOpenBlock(null)} />
+        <BlockView block={openBlock} placed={placed} dayBlocks={placed} api={api} isToday onClose={() => setOpenBlock(null)} />
       )}
     </>
   )
@@ -263,7 +268,7 @@ function Preview() {
         {mode === 'live' ? <LivePreview api={api} /> : null}
         {mode === 'sheet' ? (
           <>
-            <BlockView block={BLOCK} placed={PLACED} api={api} onClose={() => {}} />
+            <BlockView block={BLOCK} placed={PLACED} dayBlocks={PLACED} api={api} onClose={() => {}} />
             {/* usePillars needs a session, so the sheet's own picker stays empty
                 here. Render one against a fixture pillar so its styles are
                 reviewable too. */}

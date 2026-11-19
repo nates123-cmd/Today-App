@@ -195,6 +195,29 @@ export function useBlockItems(dateArg) {
     [byBlock, bump]
   )
 
+  // Hand an item to another block on the same day. It joins the end of that
+  // block's list and keeps everything else (estimate, clock, done, Course+ link).
+  const moveItem = useCallback(
+    async (item, toBlockId) => {
+      if (!item || !toBlockId || toBlockId === item.blockId) return
+      const dest = byBlock.get(toBlockId) ?? []
+      const position = dest.length ? Math.max(...dest.map((i) => i.position)) + 1 : 0
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, blockId: toBlockId, position } : i))
+      )
+      const { error } = await supabase
+        .from(TABLE)
+        .update({ block_id: toBlockId, position })
+        .eq('id', item.id)
+      if (error) {
+        console.error('block_items move', error)
+        setError(error.message)
+      }
+      bump()
+    },
+    [byBlock, bump]
+  )
+
   const setBlockView = useCallback(async (blockId, view) => {
     setViews((prev) => new Map(prev).set(blockId, view))
     const { error } = await supabase.from(BLOCKS).update({ items_view: view }).eq('id', blockId)
@@ -389,6 +412,7 @@ export function useBlockItems(dateArg) {
     viewByBlock: views,
     setBlockView,
     reorder,
+    moveItem,
     loading,
     error,
     addItem,
