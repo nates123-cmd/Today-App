@@ -19,7 +19,7 @@
 import React from 'react'
 import { IconCheck, IconPause, IconPlus, IconStopwatch } from '../icons.jsx'
 import { usePillars } from '../lib/usePillars.js'
-import { surfaceActions } from '../lib/surfaceActions.js'
+import { surfaceActions, splitFocus, daysFromToday } from '../lib/surfaceActions.js'
 import { liveElapsed, fmtDuration } from '../lib/useBlockItems.js'
 import { layoutSchedule, scheduleNow, moveId, fmtClock, DEFAULT_STEP_MINUTES } from '../lib/subSchedule.js'
 
@@ -435,12 +435,14 @@ export function CoursePicker({ pillar, block, onAdd, assignedTaskIds }) {
   const [expandedProjects, setExpandedProjects] = React.useState(() => new Set())
   const today = new Date()
 
-  const projects = pillar
+  const scopedProjects = pillar
     ? block.projectId
       ? pillar.projects.filter((p) => p.id === block.projectId)
       : pillar.projects
     : []
-  const openTasks = pillar && !block.projectId ? pillar.openTasks ?? [] : []
+  const scopedOpenTasks = pillar && !block.projectId ? pillar.openTasks ?? [] : []
+  // What is in Course+'s Now lane leads; the projects follow without it.
+  const { focus, projects, openTasks } = splitFocus(scopedProjects, scopedOpenTasks)
 
   if (!pillar) return null
 
@@ -452,7 +454,7 @@ export function CoursePicker({ pillar, block, onAdd, assignedTaskIds }) {
       return next
     })
 
-  const TaskRow = ({ t, urgent }) => {
+  const TaskRow = ({ t, urgent, projectName = null }) => {
     const taken = assignedTaskIds.has(t.id)
     return (
       <div
@@ -461,6 +463,7 @@ export function CoursePicker({ pillar, block, onAdd, assignedTaskIds }) {
       >
         <span className="picker-plus">{taken ? <IconCheck w={11} /> : <IconPlus w={11} />}</span>
         <span className="picker-task-label">{t.label}</span>
+        {projectName && <span className="picker-task-project">{projectName}</span>}
         {urgent && formatProjectDue(t.doDate) && (
           <span className="pblock-task-due">{formatProjectDue(t.doDate)}</span>
         )}
@@ -476,8 +479,26 @@ export function CoursePicker({ pillar, block, onAdd, assignedTaskIds }) {
       </div>
       {open && (
         <div className="picker-body">
-          {projects.length === 0 && openTasks.length === 0 && (
+          {focus.length === 0 && projects.length === 0 && openTasks.length === 0 && (
             <div className="pblock-project-meta">no active projects in this pillar</div>
+          )}
+          {focus.length > 0 && (
+            <div className="picker-project picker-focus">
+              <div className="picker-section">In focus</div>
+              {focus.map(({ task, projectName }) => (
+                <TaskRow
+                  key={task.id}
+                  t={task}
+                  urgent={(daysFromToday(task.doDate, today) ?? Infinity) <= 3}
+                  projectName={scopedProjects.length > 1 ? projectName : null}
+                />
+              ))}
+            </div>
+          )}
+          {focus.length > 0 && (projects.length > 0 || openTasks.length > 0) && (
+            <div className="picker-section">
+              {block.projectId ? 'Everything else' : 'Other projects'}
+            </div>
           )}
           {projects.map((project) => {
             const openList = project.tasks

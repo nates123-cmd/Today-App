@@ -89,7 +89,10 @@ const PILLAR_FIXTURE = {
     },
     {
       id: 'p2', name: 'CSA Program', meta: 'active', dueDate: null, outcome: null,
-      tasks: [{ id: 't9', label: 'Review the SGS Global Tracker items', status: 'icebox', doDate: null }],
+      tasks: [
+        { id: 't8', label: 'Send the CSA kickoff agenda', status: 'now', doDate: null },
+        { id: 't9', label: 'Review the SGS Global Tracker items', status: 'icebox', doDate: null },
+      ],
     },
   ],
   openTasks: [],
