@@ -1758,6 +1758,20 @@
 .picker-task.taken .picker-plus { color: var(--accent); }
 .picker-task-label { flex: 1; font-size: 13px; color: var(--ink-primary); }
 .picker-task.urgent .picker-task-label { font-weight: 600; }
+/* "In focus" leads the picker; "Other projects" marks where the rest begins. */
+.picker-section {
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-tertiary);
+  margin-bottom: 6px;
+}
+.picker-focus .picker-section { color: var(--accent); }
+.picker-focus { margin-bottom: 18px; }
+.picker-task-project {
+  flex-shrink: 0; max-width: 40%;
+  font-size: 11px; color: var(--ink-tertiary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 
 /* ── the "assign" affordance on the Scheduling grid ──
    A separate button, NOT the block body: tapping the body still cycles the

@@ -45,3 +45,32 @@ export function surfaceActions(incomplete, today = new Date()) {
   }
   return { state: 'normal', primary: nextCandidate, count: incomplete.length - 1 }
 }
+
+// Split a pillar's pullable work into what is in Course+'s Now lane ("Focus
+// now") and everything else. The work-block picker lists the focus tasks first,
+// across projects, then the projects with those tasks taken out so nothing is
+// offered twice. Only `now` counts, for the same reason as in surfaceActions.
+// Returns { focus: [{ task, projectName }], projects, openTasks }. A project
+// whose every task is in focus drops out of `projects`; one that had no tasks
+// to begin with stays.
+export function splitFocus(projects = [], openTasks = []) {
+  const focus = []
+  const restProjects = []
+  for (const project of projects) {
+    const tasks = project.tasks ?? []
+    const pulled = tasks.filter((t) => t.status === 'now')
+    for (const task of pulled) focus.push({ task, projectName: project.name })
+    if (pulled.length === 0) restProjects.push(project)
+    else if (pulled.length < tasks.length) {
+      restProjects.push({ ...project, tasks: tasks.filter((t) => t.status !== 'now') })
+    }
+  }
+  for (const task of openTasks) {
+    if (task.status === 'now') focus.push({ task, projectName: null })
+  }
+  return {
+    focus,
+    projects: restProjects,
+    openTasks: openTasks.filter((t) => t.status !== 'now'),
+  }
+}
